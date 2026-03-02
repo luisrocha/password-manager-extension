@@ -41,6 +41,31 @@ button {
   cursor: pointer;
 }
 
+.master-password {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.master-password input {
+  border: 1px solid #253540;
+  border-radius: 8px;
+  padding: 8px;
+  background: #0e181d;
+  color: var(--text);
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin-bottom: 8px;
+}
+
+.hidden {
+  display: none;
+}
+
 fieldset {
   margin: 12px 0;
   padding: 10px;

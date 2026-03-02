@@ -1,5 +1,9 @@
 const statusEl = document.getElementById("status");
 const siteEl = document.getElementById("site");
+const lockedSectionEl = document.getElementById("locked-section");
+const unlockedSectionEl = document.getElementById("unlocked-section");
+const masterPasswordInput = document.getElementById("master-password");
+const unlockButton = document.getElementById("unlock");
 const fillNowButton = document.getElementById("fill-now");
 const autofillOnLoadInput = document.getElementById("autofill-on-load");
 const allowHttpInput = document.getElementById("allow-http");
@@ -22,6 +26,9 @@ async function init() {
   autofillOnLoadInput.addEventListener("change", saveSettings);
   allowHttpInput.addEventListener("change", saveSettings);
   fillNowButton.addEventListener("click", onFillNow);
+  unlockButton.addEventListener("click", onUnlock);
+
+  await refreshAuthState();
 }
 
 async function saveSettings() {
@@ -47,6 +54,13 @@ async function onFillNow() {
 
   const response = await chrome.tabs.sendMessage(activeTabId, { type: "FILL_REQUESTED" });
   if (!response?.ok) {
+    if (response?.code === "auth_required") {
+      await refreshAuthState();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
     setStatus(response?.error || "Failed to fill credentials", true);
     return;
   }
@@ -57,6 +71,35 @@ async function onFillNow() {
   }
 
   setStatus(`Filled: ${response.account || "account"}`);
+}
+
+async function onUnlock() {
+  const masterPassword = masterPasswordInput.value;
+  const response = await chrome.runtime.sendMessage({
+    type: "AUTHENTICATE",
+    masterPassword
+  });
+
+  if (!response?.ok) {
+    setStatus(response?.error || "Unlock failed", true);
+    return;
+  }
+
+  masterPasswordInput.value = "";
+  await refreshAuthState();
+  setStatus("Extension unlocked");
+}
+
+async function refreshAuthState() {
+  const response = await chrome.runtime.sendMessage({ type: "GET_AUTH_STATE" });
+  const unlocked = Boolean(response?.ok && response?.auth?.unlocked);
+
+  lockedSectionEl.classList.toggle("hidden", unlocked);
+  unlockedSectionEl.classList.toggle("hidden", !unlocked);
+
+  if (!unlocked) {
+    masterPasswordInput.focus();
+  }
 }
 
 function setStatus(message, isError = false) {

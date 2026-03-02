@@ -40,7 +40,13 @@ async function handleMessage(rawJson) {
   }
 
   if (message?.type === "GET_CREDENTIALS") {
-    const response = await fetchCredentials(message.payload || {});
+    const response = await fetchCredentials(message.payload || {}, message.authToken);
+    writeNative(response);
+    return;
+  }
+
+  if (message?.type === "AUTHENTICATE") {
+    const response = await authenticate(message.payload || {});
     writeNative(response);
     return;
   }
@@ -53,7 +59,12 @@ async function handleMessage(rawJson) {
   writeNative({ ok: false, error: "Unsupported message type" });
 }
 
-async function fetchCredentials(payload) {
+async function fetchCredentials(payload, authToken) {
+  const bearerToken = authToken || API_TOKEN;
+  if (!bearerToken) {
+    return { ok: false, code: "auth_required", error: "Unlock required" };
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -62,7 +73,7 @@ async function fetchCredentials(payload) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(API_TOKEN ? { authorization: `Bearer ${API_TOKEN}` } : {})
+        authorization: `Bearer ${bearerToken}`
       },
       body: JSON.stringify({
         origin: payload.origin,
@@ -74,9 +85,11 @@ async function fetchCredentials(payload) {
     });
 
     if (!response.ok) {
+      const errorBody = await safeJson(response);
       return {
         ok: false,
-        error: `Password manager API returned ${response.status}`
+        code: errorBody?.code || (response.status === 401 ? "invalid_token" : "api_error"),
+        error: errorBody?.error || `Password manager API returned ${response.status}`
       };
     }
 
@@ -92,6 +105,70 @@ async function fetchCredentials(payload) {
     return { ok: false, error: error.message || "Bridge request failed" };
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function authenticate(payload) {
+  if (!API_TOKEN) {
+    return {
+      ok: false,
+      code: "invalid_api_token",
+      error: "PASSWORD_MANAGER_API_TOKEN is required to unlock"
+    };
+  }
+
+  const masterPassword = payload.masterPassword;
+  if (!masterPassword) {
+    return { ok: false, code: "invalid_master_password", error: "Master password is required" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_URL}/api/browser/auth/unlock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${API_TOKEN}`
+      },
+      body: JSON.stringify({ masterPassword }),
+      signal: controller.signal
+    });
+
+    const body = await safeJson(response);
+    if (!response.ok) {
+      return {
+        ok: false,
+        code: body?.code || "authentication_failed",
+        error: body?.error || `Authentication failed (${response.status})`
+      };
+    }
+
+    if (!body?.token) {
+      return { ok: false, code: "authentication_failed", error: "Missing token in response" };
+    }
+
+    return {
+      ok: true,
+      token: body.token,
+      expiresAt: body.expiresAt || null
+    };
+  } catch (error) {
+    if (error.name === "AbortError") {
+      return { ok: false, code: "timeout", error: "Password manager API timed out" };
+    }
+    return { ok: false, code: "bridge_error", error: error.message || "Bridge request failed" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function safeJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
   }
 }
 

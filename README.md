@@ -41,7 +41,7 @@ A Chromium MV3 extension + Native Messaging bridge that requests credentials fro
 The native host expects environment variables:
 
 - `PASSWORD_MANAGER_API_URL` (default: `http://127.0.0.1:17325`)
-- `PASSWORD_MANAGER_API_TOKEN` (optional but recommended)
+- `PASSWORD_MANAGER_API_TOKEN` (required for unlock endpoint authentication)
 - `PASSWORD_MANAGER_TIMEOUT_MS` (default: `3000`)
 
 Use the native-host env file:
@@ -52,6 +52,14 @@ cp host.env.example host.env
 ```
 
 Then edit `native-host/host.env` with your values.
+
+Authentication flow:
+
+1. Open the extension popup.
+2. Enter your master password and click **Unlock**.
+3. The extension requests an encrypted JWT from `POST /api/browser/auth/unlock` with the static API token and master password.
+4. The encrypted JWT is sent as Bearer token on later credentials requests.
+5. When the token expires, the extension requires master password again.
 
 ## 3) Register the Native Messaging host (Linux)
 
@@ -75,6 +83,24 @@ The script injects:
 Brave launches the host process itself via `native-host/host-launcher.sh`, which loads `native-host/host.env`.
 
 ## Password-manager app API contract
+
+Unlock request (`POST /api/browser/auth/unlock`):
+
+```json
+{
+  "masterPassword": "your-master-password"
+}
+```
+
+Unlock response:
+
+```json
+{
+  "token": "encrypted-jwt",
+  "expiresAt": "2026-03-02T12:34:56Z",
+  "tokenType": "Bearer"
+}
+```
 
 Request body (`POST /api/browser/credentials/search`):
 
@@ -101,28 +127,3 @@ Response body:
   ]
 }
 ```
-
-## UX behavior
-
-- Popup button: fill credentials on current page
-- Shortcut: `Ctrl+Shift+L` (`Cmd+Shift+L` on macOS)
-- Optional settings:
-  - Autofill on page load
-  - Allow autofill on HTTP pages (disabled by default)
-
-## Security notes
-
-- Keep autofill restricted to HTTPS unless explicitly needed.
-- Do not store API tokens in source code.
-- Use a short-lived token for browser integration.
-- Consider requiring user unlock or biometric confirmation in your password-manager app before returning passwords.
-
-## Development notes
-
-- Extension entry files:
-  - `extension/manifest.json`
-  - `extension/background.js`
-  - `extension/content.js`
-  - `extension/popup.js`
-- Native host entry:
-  - `native-host/host.js`

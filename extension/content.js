@@ -54,7 +54,11 @@ async function fillCredentials(options = {}) {
   });
 
   if (!response?.ok) {
-    return { ok: false, error: response?.error || "Could not fetch credentials" };
+    return {
+      ok: false,
+      code: response?.code,
+      error: response?.error || "Could not fetch credentials"
+    };
   }
 
   if (!response.credentials.length) {

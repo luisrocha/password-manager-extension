@@ -10,18 +10,32 @@
     <main class="popup">
       <h1>Password Manager</h1>
       <p id="site" class="site">Detecting current site...</p>
-      <button id="fill-now" type="button">Fill credentials</button>
 
-      <fieldset>
-        <label>
-          <input id="autofill-on-load" type="checkbox" />
-          Autofill on page load
+      <section id="locked-section">
+        <label class="master-password">
+          Master password
+          <input id="master-password" type="password" autocomplete="current-password" />
         </label>
-        <label>
-          <input id="allow-http" type="checkbox" />
-          Allow autofill on HTTP pages
-        </label>
-      </fieldset>
+
+        <div class="auth-actions">
+          <button id="unlock" type="button">Unlock</button>
+        </div>
+      </section>
+
+      <section id="unlocked-section">
+        <button id="fill-now" type="button">Fill credentials</button>
+
+        <fieldset>
+          <label>
+            <input id="autofill-on-load" type="checkbox" />
+            Autofill on page load
+          </label>
+          <label>
+            <input id="allow-http" type="checkbox" />
+            Allow autofill on HTTP pages
+          </label>
+        </fieldset>
+      </section>
 
       <p id="status" class="status" aria-live="polite"></p>
     </main>
