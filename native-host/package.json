@@ -1,0 +1,14 @@
+{
+  "name": "password-manager-native-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Native Messaging host bridge for Browser extension",
+  "main": "host.js",
+  "scripts": {
+    "start": "node host.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

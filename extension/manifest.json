@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Password Manager Autofill",
+  "description": "Browser extension that fetches credentials from your local password-manager app and autofills login forms.",
+  "version": "0.1.0",
+  "permissions": ["storage", "activeTab", "nativeMessaging"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Password Manager",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "fill-login": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Fill login credentials on the current page"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Password Manager</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>Password Manager</h1>
+      <p id="site" class="site">Detecting current site...</p>
+      <button id="fill-now" type="button">Fill credentials</button>
+
+      <fieldset>
+        <label>
+          <input id="autofill-on-load" type="checkbox" />
+          Autofill on page load
+        </label>
+        <label>
+          <input id="allow-http" type="checkbox" />
+          Allow autofill on HTTP pages
+        </label>
+      </fieldset>
+
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
