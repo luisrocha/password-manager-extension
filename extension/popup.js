@@ -1,10 +1,12 @@
 const statusEl = document.getElementById("status");
 const siteEl = document.getElementById("site");
-const lockedSectionEl = document.getElementById("locked-section");
+const unlockFormEl = document.getElementById("locked-section");
+const lockedSectionEl = unlockFormEl;
 const unlockedSectionEl = document.getElementById("unlocked-section");
 const masterPasswordInput = document.getElementById("master-password");
-const unlockButton = document.getElementById("unlock");
 const fillNowButton = document.getElementById("fill-now");
+const credentialSelectionEl = document.getElementById("credential-selection");
+const credentialSelectEl = document.getElementById("credential-select");
 const autofillOnLoadInput = document.getElementById("autofill-on-load");
 const allowHttpInput = document.getElementById("allow-http");
 
@@ -26,9 +28,12 @@ async function init() {
   autofillOnLoadInput.addEventListener("change", saveSettings);
   allowHttpInput.addEventListener("change", saveSettings);
   fillNowButton.addEventListener("click", onFillNow);
-  unlockButton.addEventListener("click", onUnlock);
+  unlockFormEl.addEventListener("submit", onUnlockSubmit);
 
-  await refreshAuthState();
+  const unlocked = await refreshAuthState();
+  if (unlocked) {
+    await loadCredentialOptions();
+  }
 }
 
 async function saveSettings() {
@@ -52,16 +57,35 @@ async function onFillNow() {
     return;
   }
 
-  const response = await chrome.tabs.sendMessage(activeTabId, { type: "FILL_REQUESTED" });
+  const selectedCredentialId = credentialSelectionEl.classList.contains("hidden")
+    ? null
+    : credentialSelectEl.value || null;
+
+  if (!selectedCredentialId) {
+    setStatus("Select an account first.", true);
+    return;
+  }
+
+  const response = await chrome.tabs.sendMessage(activeTabId, {
+    type: "FILL_REQUESTED",
+    credentialId: selectedCredentialId
+  });
   if (!response?.ok) {
     if (response?.code === "auth_required") {
       await refreshAuthState();
+      hideCredentialSelection();
       setStatus("Unlock required. Enter master password.", true);
       masterPasswordInput.focus();
       return;
     }
 
     setStatus(response?.error || "Failed to fill credentials", true);
+    return;
+  }
+
+  if (response.needsSelection) {
+    showCredentialSelection(response.credentials || []);
+    setStatus("Select an account, then click Fill credentials.", true);
     return;
   }
 
@@ -86,8 +110,16 @@ async function onUnlock() {
   }
 
   masterPasswordInput.value = "";
-  await refreshAuthState();
+  const unlocked = await refreshAuthState();
+  if (unlocked) {
+    await loadCredentialOptions();
+  }
   setStatus("Extension unlocked");
+}
+
+async function onUnlockSubmit(event) {
+  event.preventDefault();
+  await onUnlock();
 }
 
 async function refreshAuthState() {
@@ -98,8 +130,73 @@ async function refreshAuthState() {
   unlockedSectionEl.classList.toggle("hidden", !unlocked);
 
   if (!unlocked) {
+    hideCredentialSelection();
+    setFillButtonHasCredentials(false);
     masterPasswordInput.focus();
   }
+
+  return unlocked;
+}
+
+function showCredentialSelection(credentials) {
+  credentialSelectEl.innerHTML = "";
+
+  credentials.forEach((credential) => {
+    const option = document.createElement("option");
+    option.value = credential.id;
+    option.textContent = formatCredentialOption(credential);
+    credentialSelectEl.append(option);
+  });
+
+  credentialSelectionEl.classList.remove("hidden");
+  setFillButtonHasCredentials(true);
+}
+
+function hideCredentialSelection() {
+  credentialSelectionEl.classList.add("hidden");
+  credentialSelectEl.innerHTML = "";
+  setFillButtonHasCredentials(false);
+}
+
+function formatCredentialOption(credential) {
+  const name = credential.displayName || credential.username || "Account";
+  if (!credential.username || credential.username === name) return name;
+  return `${name} (${credential.username})`;
+}
+
+async function loadCredentialOptions() {
+  if (!activeTabId) {
+    hideCredentialSelection();
+    return;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(activeTabId, { type: "LIST_CREDENTIALS" });
+    if (!response?.ok) {
+      hideCredentialSelection();
+      if (response?.error) {
+        setStatus(response.error, true);
+      }
+      return;
+    }
+
+    const credentials = Array.isArray(response.credentials) ? response.credentials : [];
+    if (!credentials.length) {
+      hideCredentialSelection();
+      setStatus("No credentials found for this site");
+      return;
+    }
+
+    showCredentialSelection(credentials);
+  } catch {
+    hideCredentialSelection();
+    setStatus("This page does not support autofill", true);
+  }
+}
+
+function setFillButtonHasCredentials(hasCredentials) {
+  fillNowButton.disabled = !hasCredentials;
+  fillNowButton.textContent = hasCredentials ? "Fill credentials" : "No credentials found";
 }
 
 function setStatus(message, isError = false) {

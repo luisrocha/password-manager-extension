@@ -11,18 +11,23 @@
       <h1>Password Manager</h1>
       <p id="site" class="site">Detecting current site...</p>
 
-      <section id="locked-section">
+      <form id="locked-section">
         <label class="master-password">
           Master password
           <input id="master-password" type="password" autocomplete="current-password" />
         </label>
 
         <div class="auth-actions">
-          <button id="unlock" type="button">Unlock</button>
+          <button id="unlock" type="submit">Unlock</button>
         </div>
-      </section>
+      </form>
 
       <section id="unlocked-section">
+        <div id="credential-selection" class="credential-selection hidden">
+          <label for="credential-select">Choose account</label>
+          <select id="credential-select"></select>
+        </div>
+
         <button id="fill-now" type="button">Fill credentials</button>
 
         <fieldset>

@@ -127,3 +127,5 @@ Response body:
   ]
 }
 ```
+
+If credentials match the current domain, the popup loads them into an account picker so the user can select one before clicking fill.

@@ -4,7 +4,15 @@ window.addEventListener("load", maybeAutofillOnLoad, { once: true });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "FILL_REQUESTED") {
-    fillCredentials().then(sendResponse);
+    fillCredentials({
+      credentialId: message.credentialId,
+      silentNoMatch: message.silentNoMatch
+    }).then(sendResponse);
+    return true;
+  }
+
+  if (message?.type === "LIST_CREDENTIALS") {
+    listCredentials().then(sendResponse);
     return true;
   }
 
@@ -24,11 +32,17 @@ async function maybeAutofillOnLoad() {
   if (!autofillOnPageLoad) return;
 
   if (!allowHttp && location.protocol !== "https:") return;
-  await fillCredentials({ silentNoMatch: true });
+  await fillCredentials({
+    silentNoMatch: true,
+    allowAutofilled: false,
+    autoSelectFirstCredential: true
+  });
 }
 
 async function fillCredentials(options = {}) {
-  const detection = detectLoginTargets();
+  const detection = detectLoginTargets({
+    allowAutofilled: options.allowAutofilled !== false
+  });
   if (detection.state === "already_autofilled") {
     return {
       ok: true,
@@ -43,15 +57,7 @@ async function fillCredentials(options = {}) {
   }
   const formTargets = detection.targets;
 
-  const response = await chrome.runtime.sendMessage({
-    type: "GET_CREDENTIALS",
-    payload: {
-      origin: location.origin,
-      url: location.href,
-      title: document.title,
-      frameUrl: window.location.href
-    }
-  });
+  const response = await fetchSiteCredentials();
 
   if (!response?.ok) {
     return {
@@ -66,7 +72,23 @@ async function fillCredentials(options = {}) {
     return { ok: false, error: "No credentials found for this site" };
   }
 
-  const credential = response.credentials[0];
+  const credential = pickCredential(
+    response.credentials,
+    options.credentialId,
+    options.autoSelectFirstCredential
+  );
+  if (!credential) {
+    return {
+      ok: true,
+      needsSelection: true,
+      credentials: response.credentials.map((item) => ({
+        id: item.id,
+        displayName: item.displayName || "",
+        username: item.username || ""
+      }))
+    };
+  }
+
   applyCredential(formTargets, credential);
   return {
     ok: true,
@@ -74,14 +96,62 @@ async function fillCredentials(options = {}) {
   };
 }
 
-function detectLoginTargets() {
+async function listCredentials() {
+  const detection = detectLoginTargets({ allowAutofilled: true });
+  if (detection.state === "no_valid_login_fields") {
+    return { ok: false, error: "No valid login fields found" };
+  }
+
+  const response = await fetchSiteCredentials();
+  if (!response?.ok) {
+    return {
+      ok: false,
+      code: response?.code,
+      error: response?.error || "Could not fetch credentials"
+    };
+  }
+
+  return {
+    ok: true,
+    credentials: (response.credentials || []).map((item) => ({
+      id: item.id,
+      displayName: item.displayName || "",
+      username: item.username || ""
+    }))
+  };
+}
+
+async function fetchSiteCredentials() {
+  return chrome.runtime.sendMessage({
+    type: "GET_CREDENTIALS",
+    payload: {
+      origin: location.origin,
+      url: location.href,
+      title: document.title,
+      frameUrl: window.location.href
+    }
+  });
+}
+
+function pickCredential(credentials, selectedCredentialId, autoSelectFirstCredential = false) {
+  if (!Array.isArray(credentials) || credentials.length === 0) return null;
+  if (credentials.length === 1) return credentials[0];
+  if (autoSelectFirstCredential) return credentials[0];
+  if (!selectedCredentialId) return null;
+  return credentials.find((credential) => credential.id === selectedCredentialId) || null;
+}
+
+function detectLoginTargets(options = {}) {
+  const allowAutofilled = Boolean(options.allowAutofilled);
   const passwordCandidates = Array.from(document.querySelectorAll('input[type="password"]'))
     .filter((input) => isFieldUsable(input));
   if (!passwordCandidates.length) {
     return { state: "no_valid_login_fields" };
   }
 
-  const passwordField = passwordCandidates.find((input) => input.getAttribute(AUTOFILLED_FLAG) !== "true");
+  const passwordField = allowAutofilled
+    ? passwordCandidates[0]
+    : passwordCandidates.find((input) => input.getAttribute(AUTOFILLED_FLAG) !== "true");
   if (!passwordField) {
     return { state: "already_autofilled" };
   }
