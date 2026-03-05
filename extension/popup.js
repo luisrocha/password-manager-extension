@@ -7,10 +7,17 @@ const masterPasswordInput = document.getElementById("master-password");
 const fillNowButton = document.getElementById("fill-now");
 const credentialSelectionEl = document.getElementById("credential-selection");
 const credentialSelectEl = document.getElementById("credential-select");
+const credentialDetailsEl = document.getElementById("credential-details");
+const selectedUsernameInput = document.getElementById("selected-username");
+const selectedPasswordInput = document.getElementById("selected-password");
+const copyUsernameButton = document.getElementById("copy-username");
+const copyPasswordButton = document.getElementById("copy-password");
+const togglePasswordButton = document.getElementById("toggle-password");
 const autofillOnLoadInput = document.getElementById("autofill-on-load");
 const allowHttpInput = document.getElementById("allow-http");
 
 let activeTabId = null;
+let listedCredentials = [];
 
 init().catch((error) => setStatus(error.message, true));
 
@@ -29,6 +36,10 @@ async function init() {
   allowHttpInput.addEventListener("change", saveSettings);
   fillNowButton.addEventListener("click", onFillNow);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
+  credentialSelectEl.addEventListener("change", onCredentialSelectionChange);
+  copyUsernameButton.addEventListener("click", onCopyUsername);
+  copyPasswordButton.addEventListener("click", onCopyPassword);
+  togglePasswordButton.addEventListener("click", onTogglePasswordVisibility);
 
   const unlocked = await refreshAuthState();
   if (unlocked) {
@@ -57,9 +68,7 @@ async function onFillNow() {
     return;
   }
 
-  const selectedCredentialId = credentialSelectionEl.classList.contains("hidden")
-    ? null
-    : credentialSelectEl.value || null;
+  const selectedCredentialId = getSelectedCredentialId();
 
   if (!selectedCredentialId) {
     setStatus("Select an account first.", true);
@@ -84,7 +93,8 @@ async function onFillNow() {
   }
 
   if (response.needsSelection) {
-    showCredentialSelection(response.credentials || []);
+    const credentials = Array.isArray(response.credentials) ? response.credentials : [];
+    showCredentialSelection(credentials);
     setStatus("Select an account, then click Fill credentials.", true);
     return;
   }
@@ -139,6 +149,7 @@ async function refreshAuthState() {
 }
 
 function showCredentialSelection(credentials) {
+  listedCredentials = credentials;
   credentialSelectEl.innerHTML = "";
 
   credentials.forEach((credential) => {
@@ -149,12 +160,15 @@ function showCredentialSelection(credentials) {
   });
 
   credentialSelectionEl.classList.remove("hidden");
+  renderSelectedCredentialDetails();
   setFillButtonHasCredentials(true);
 }
 
 function hideCredentialSelection() {
+  listedCredentials = [];
   credentialSelectionEl.classList.add("hidden");
   credentialSelectEl.innerHTML = "";
+  hideCredentialDetails();
   setFillButtonHasCredentials(false);
 }
 
@@ -197,6 +211,72 @@ async function loadCredentialOptions() {
 function setFillButtonHasCredentials(hasCredentials) {
   fillNowButton.disabled = !hasCredentials;
   fillNowButton.textContent = hasCredentials ? "Fill credentials" : "No credentials found";
+}
+
+function onCredentialSelectionChange() {
+  renderSelectedCredentialDetails();
+}
+
+function renderSelectedCredentialDetails() {
+  const selectedCredentialId = getSelectedCredentialId();
+  if (!selectedCredentialId) {
+    hideCredentialDetails();
+    return;
+  }
+
+  const selectedCredential = listedCredentials.find((credential) => credential.id === selectedCredentialId);
+  if (!selectedCredential) {
+    hideCredentialDetails();
+    return;
+  }
+
+  selectedUsernameInput.value = selectedCredential.username || "";
+  selectedPasswordInput.value = selectedCredential.password || "";
+  selectedPasswordInput.classList.add("masked");
+  togglePasswordButton.textContent = "Show";
+  credentialDetailsEl.classList.remove("hidden");
+}
+
+function getSelectedCredentialId() {
+  if (credentialSelectionEl.classList.contains("hidden")) return null;
+  const value = credentialSelectEl.value || "";
+  return value.trim() ? value : null;
+}
+
+function hideCredentialDetails() {
+  credentialDetailsEl.classList.add("hidden");
+  selectedUsernameInput.value = "";
+  selectedPasswordInput.value = "";
+  selectedPasswordInput.classList.add("masked");
+  togglePasswordButton.textContent = "Show";
+}
+
+async function onCopyUsername() {
+  await copyToClipboard(selectedUsernameInput.value, "Username copied");
+}
+
+async function onCopyPassword() {
+  await copyToClipboard(selectedPasswordInput.value, "Password copied");
+}
+
+function onTogglePasswordVisibility() {
+  const isHidden = selectedPasswordInput.classList.contains("masked");
+  selectedPasswordInput.classList.toggle("masked", !isHidden);
+  togglePasswordButton.textContent = isHidden ? "Hide" : "Show";
+}
+
+async function copyToClipboard(value, successMessage) {
+  if (!value) {
+    setStatus("Nothing to copy", true);
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus(successMessage);
+  } catch {
+    setStatus("Failed to copy", true);
+  }
 }
 
 function setStatus(message, isError = false) {

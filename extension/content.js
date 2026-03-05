@@ -84,7 +84,8 @@ async function fillCredentials(options = {}) {
       credentials: response.credentials.map((item) => ({
         id: item.id,
         displayName: item.displayName || "",
-        username: item.username || ""
+        username: item.username || "",
+        password: item.password || ""
       }))
     };
   }
@@ -116,7 +117,8 @@ async function listCredentials() {
     credentials: (response.credentials || []).map((item) => ({
       id: item.id,
       displayName: item.displayName || "",
-      username: item.username || ""
+      username: item.username || "",
+      password: item.password || ""
     }))
   };
 }

@@ -12,10 +12,11 @@ body {
   background: radial-gradient(circle at top, #1a2730 0%, var(--bg) 70%);
   color: var(--text);
   font-family: "Segoe UI", sans-serif;
+  min-width: 360px;
 }
 
 .popup {
-  width: 280px;
+  width: clamp(360px, 92vw, 520px);
   padding: 14px;
 }
 
@@ -69,7 +70,7 @@ button:disabled {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 .credential-selection {
@@ -89,6 +90,49 @@ button:disabled {
   border-radius: 8px;
   padding: 8px;
   background: #0e181d;
+  color: var(--text);
+}
+
+.credential-details {
+  margin: 10px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.credential-field {
+  display: grid;
+  gap: 6px;
+}
+
+.credential-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.credential-field-actions {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+}
+
+.credential-field-actions input {
+  border: 1px solid #253540;
+  border-radius: 8px;
+  padding: 8px;
+  background: #0e181d;
+  color: var(--text);
+}
+
+.credential-field-actions input.masked {
+  -webkit-text-security: disc;
+}
+
+.field-action {
+  width: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #253540;
   color: var(--text);
 }
 

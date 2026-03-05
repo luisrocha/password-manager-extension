@@ -28,6 +28,25 @@
           <select id="credential-select"></select>
         </div>
 
+        <div id="credential-details" class="credential-details hidden">
+          <div class="credential-field">
+            <label for="selected-username">Username</label>
+            <div class="credential-field-actions">
+              <input id="selected-username" type="text" readonly />
+              <button id="copy-username" type="button" class="field-action">Copy</button>
+            </div>
+          </div>
+
+          <div class="credential-field">
+            <label for="selected-password">Password</label>
+            <div class="credential-field-actions">
+              <input id="selected-password" type="text" readonly class="masked" />
+              <button id="toggle-password" type="button" class="field-action">Show</button>
+              <button id="copy-password" type="button" class="field-action">Copy</button>
+            </div>
+          </div>
+        </div>
+
         <button id="fill-now" type="button">Fill credentials</button>
 
         <fieldset>
