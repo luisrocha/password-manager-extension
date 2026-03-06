@@ -55,6 +55,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "SEARCH_CREDENTIALS") {
+    requestNativeCredentials({
+      query: typeof message.query === "string" ? message.query.trim() : ""
+    })
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "AUTHENTICATE") {
     authenticateWithMasterPassword(message.masterPassword)
       .then((response) => sendResponse(response))
@@ -83,7 +92,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   sendResponse({ ok: false, error: `Unknown message type: ${message.type}` });
 });
 
-async function requestNativeCredentials(payload) {
+async function requestNativeCredentials(payload = {}) {
   const auth = await getAuthState();
   if (!auth?.token) {
     return { ok: false, error: "Unlock required", code: "auth_required" };
@@ -99,7 +108,8 @@ async function requestNativeCredentials(payload) {
           origin: payload?.origin,
           url: payload?.url,
           title: payload?.title,
-          frameUrl: payload?.frameUrl
+          frameUrl: payload?.frameUrl,
+          query: payload?.query
         }
       },
       (response) => {

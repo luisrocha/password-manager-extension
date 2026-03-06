@@ -79,7 +79,8 @@ async function fetchCredentials(payload, authToken) {
         origin: payload.origin,
         url: payload.url,
         title: payload.title,
-        frameUrl: payload.frameUrl
+        frameUrl: payload.frameUrl,
+        query: payload.query
       }),
       signal: controller.signal
     });

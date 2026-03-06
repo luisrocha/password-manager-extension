@@ -5,6 +5,8 @@ const lockedSectionEl = unlockFormEl;
 const unlockedSectionEl = document.getElementById("unlocked-section");
 const masterPasswordInput = document.getElementById("master-password");
 const fillNowButton = document.getElementById("fill-now");
+const credentialSearchFormEl = document.getElementById("credential-search-form");
+const credentialSearchInputEl = document.getElementById("credential-search-input");
 const credentialSelectionEl = document.getElementById("credential-selection");
 const credentialSelectEl = document.getElementById("credential-select");
 const credentialDetailsEl = document.getElementById("credential-details");
@@ -36,6 +38,7 @@ async function init() {
   allowHttpInput.addEventListener("change", saveSettings);
   fillNowButton.addEventListener("click", onFillNow);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
+  credentialSearchFormEl.addEventListener("submit", onCredentialSearchSubmit);
   credentialSelectEl.addEventListener("change", onCredentialSelectionChange);
   copyUsernameButton.addEventListener("click", onCopyUsername);
   copyPasswordButton.addEventListener("click", onCopyPassword);
@@ -69,6 +72,7 @@ async function onFillNow() {
   }
 
   const selectedCredentialId = getSelectedCredentialId();
+  const selectedCredential = getSelectedCredential();
 
   if (!selectedCredentialId) {
     setStatus("Select an account first.", true);
@@ -77,7 +81,8 @@ async function onFillNow() {
 
   const response = await chrome.tabs.sendMessage(activeTabId, {
     type: "FILL_REQUESTED",
-    credentialId: selectedCredentialId
+    credentialId: selectedCredentialId,
+    selectedCredential
   });
   if (!response?.ok) {
     if (response?.code === "auth_required") {
@@ -149,10 +154,16 @@ async function refreshAuthState() {
 }
 
 function showCredentialSelection(credentials) {
-  listedCredentials = credentials;
+  listedCredentials = credentials.map((credential) => ({
+    id: credential.id,
+    displayName: credential.displayName || "",
+    domain: credential.domain || "",
+    username: credential.username || "",
+    password: credential.password || ""
+  }));
   credentialSelectEl.innerHTML = "";
 
-  credentials.forEach((credential) => {
+  listedCredentials.forEach((credential) => {
     const option = document.createElement("option");
     option.value = credential.id;
     option.textContent = formatCredentialOption(credential);
@@ -174,8 +185,9 @@ function hideCredentialSelection() {
 
 function formatCredentialOption(credential) {
   const name = credential.displayName || credential.username || "Account";
-  if (!credential.username || credential.username === name) return name;
-  return `${name} (${credential.username})`;
+  const domain = credential.domain ? ` @ ${credential.domain}` : "";
+  if (!credential.username || credential.username === name) return `${name}${domain}`;
+  return `${name} (${credential.username})${domain}`;
 }
 
 async function loadCredentialOptions() {
@@ -218,13 +230,7 @@ function onCredentialSelectionChange() {
 }
 
 function renderSelectedCredentialDetails() {
-  const selectedCredentialId = getSelectedCredentialId();
-  if (!selectedCredentialId) {
-    hideCredentialDetails();
-    return;
-  }
-
-  const selectedCredential = listedCredentials.find((credential) => credential.id === selectedCredentialId);
+  const selectedCredential = getSelectedCredential();
   if (!selectedCredential) {
     hideCredentialDetails();
     return;
@@ -243,6 +249,12 @@ function getSelectedCredentialId() {
   return value.trim() ? value : null;
 }
 
+function getSelectedCredential() {
+  const selectedCredentialId = getSelectedCredentialId();
+  if (!selectedCredentialId) return null;
+  return listedCredentials.find((credential) => credential.id === selectedCredentialId) || null;
+}
+
 function hideCredentialDetails() {
   credentialDetailsEl.classList.add("hidden");
   selectedUsernameInput.value = "";
@@ -253,6 +265,45 @@ function hideCredentialDetails() {
 
 async function onCopyUsername() {
   await copyToClipboard(selectedUsernameInput.value, "Username copied");
+}
+
+async function onCredentialSearchSubmit(event) {
+  event.preventDefault();
+
+  const query = credentialSearchInputEl.value.trim();
+  if (!query) {
+    await loadCredentialOptions();
+    return;
+  }
+
+  const response = await chrome.runtime.sendMessage({
+    type: "SEARCH_CREDENTIALS",
+    query
+  });
+
+  if (!response?.ok) {
+    if (response?.code === "auth_required") {
+      await refreshAuthState();
+      hideCredentialSelection();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
+    hideCredentialSelection();
+    setStatus(response?.error || "Failed to search credentials", true);
+    return;
+  }
+
+  const credentials = Array.isArray(response.credentials) ? response.credentials : [];
+  if (!credentials.length) {
+    hideCredentialSelection();
+    setStatus("No credentials match this search");
+    return;
+  }
+
+  showCredentialSelection(credentials);
+  setStatus(`Found ${credentials.length} matching credential${credentials.length === 1 ? "" : "s"}`);
 }
 
 async function onCopyPassword() {

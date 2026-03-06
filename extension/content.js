@@ -6,6 +6,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "FILL_REQUESTED") {
     fillCredentials({
       credentialId: message.credentialId,
+      selectedCredential: message.selectedCredential,
       silentNoMatch: message.silentNoMatch
     }).then(sendResponse);
     return true;
@@ -56,6 +57,16 @@ async function fillCredentials(options = {}) {
     return { ok: false, error: "No valid login fields found" };
   }
   const formTargets = detection.targets;
+  if (options.selectedCredential?.id) {
+    applyCredential(formTargets, options.selectedCredential);
+    return {
+      ok: true,
+      account:
+        options.selectedCredential.displayName ||
+        options.selectedCredential.username ||
+        "Account"
+    };
+  }
 
   const response = await fetchSiteCredentials();
 
@@ -117,6 +128,7 @@ async function listCredentials() {
     credentials: (response.credentials || []).map((item) => ({
       id: item.id,
       displayName: item.displayName || "",
+      domain: item.domain || "",
       username: item.username || "",
       password: item.password || ""
     }))
