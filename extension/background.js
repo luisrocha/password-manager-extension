@@ -55,6 +55,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "SAVE_CREDENTIAL") {
+    saveNativeCredential(message.payload)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "UPDATE_CREDENTIAL") {
+    updateNativeCredential(message.payload)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "DELETE_CREDENTIAL") {
+    deleteNativeCredential(message.payload)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "SEARCH_CREDENTIALS") {
     requestNativeCredentials({
       query: typeof message.query === "string" ? message.query.trim() : ""
@@ -144,6 +165,180 @@ async function requestNativeCredentials(payload = {}) {
         resolve({
           ok: true,
           credentials: Array.isArray(response.credentials) ? response.credentials : []
+        });
+      }
+    );
+  });
+}
+
+async function saveNativeCredential(payload = {}) {
+  const auth = await getAuthState();
+  if (!auth?.token) {
+    return { ok: false, error: "Unlock required", code: "auth_required" };
+  }
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(
+      NATIVE_APP_NAME,
+      {
+        type: "SAVE_CREDENTIAL",
+        authToken: auth.token,
+        payload: {
+          name: payload?.name,
+          displayName: payload?.displayName,
+          domain: payload?.domain,
+          origin: payload?.origin,
+          url: payload?.url,
+          title: payload?.title,
+          frameUrl: payload?.frameUrl,
+          username: payload?.username,
+          password: payload?.password,
+          notes: payload?.notes
+        }
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({
+            ok: false,
+            error: chrome.runtime.lastError.message || "Native host unavailable"
+          });
+          return;
+        }
+
+        if (!response || response.ok === false) {
+          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+            clearAuthState().then(() => {
+              resolve({
+                ok: false,
+                code: "auth_required",
+                error: "Session expired. Unlock again."
+              });
+            });
+            return;
+          }
+
+          resolve({
+            ok: false,
+            code: response?.code,
+            error: response?.error || "Native host returned no data"
+          });
+          return;
+        }
+
+        resolve({
+          ok: true,
+          credential: response.credential || null
+        });
+      }
+    );
+  });
+}
+
+async function updateNativeCredential(payload = {}) {
+  const auth = await getAuthState();
+  if (!auth?.token) {
+    return { ok: false, error: "Unlock required", code: "auth_required" };
+  }
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(
+      NATIVE_APP_NAME,
+      {
+        type: "UPDATE_CREDENTIAL",
+        authToken: auth.token,
+        payload: {
+          id: payload?.id,
+          username: payload?.username,
+          password: payload?.password,
+          notes: payload?.notes
+        }
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({
+            ok: false,
+            error: chrome.runtime.lastError.message || "Native host unavailable"
+          });
+          return;
+        }
+
+        if (!response || response.ok === false) {
+          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+            clearAuthState().then(() => {
+              resolve({
+                ok: false,
+                code: "auth_required",
+                error: "Session expired. Unlock again."
+              });
+            });
+            return;
+          }
+
+          resolve({
+            ok: false,
+            code: response?.code,
+            error: response?.error || "Native host returned no data"
+          });
+          return;
+        }
+
+        resolve({
+          ok: true,
+          credential: response.credential || null
+        });
+      }
+    );
+  });
+}
+
+async function deleteNativeCredential(payload = {}) {
+  const auth = await getAuthState();
+  if (!auth?.token) {
+    return { ok: false, error: "Unlock required", code: "auth_required" };
+  }
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(
+      NATIVE_APP_NAME,
+      {
+        type: "DELETE_CREDENTIAL",
+        authToken: auth.token,
+        payload: {
+          id: payload?.id
+        }
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({
+            ok: false,
+            error: chrome.runtime.lastError.message || "Native host unavailable"
+          });
+          return;
+        }
+
+        if (!response || response.ok === false) {
+          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+            clearAuthState().then(() => {
+              resolve({
+                ok: false,
+                code: "auth_required",
+                error: "Session expired. Unlock again."
+              });
+            });
+            return;
+          }
+
+          resolve({
+            ok: false,
+            code: response?.code,
+            error: response?.error || "Native host returned no data"
+          });
+          return;
+        }
+
+        resolve({
+          ok: true,
+          credential: response.credential || null
         });
       }
     );

@@ -25,6 +25,11 @@ h1 {
   font-size: 16px;
 }
 
+.form-title {
+  margin: 0;
+  font-size: 14px;
+}
+
 .site {
   margin: 0 0 12px;
   color: var(--muted);
@@ -46,6 +51,17 @@ button:disabled {
   background: #5c6670;
   color: #d2d8de;
   cursor: not-allowed;
+}
+
+.secondary-action {
+  margin-top: 8px;
+  background: #253540;
+  color: var(--text);
+}
+
+.danger-action {
+  background: #5a1f24;
+  color: #ffe5e7;
 }
 
 .master-password {
@@ -130,6 +146,14 @@ button:disabled {
   color: var(--muted);
 }
 
+.credential-field input {
+  border: 1px solid #253540;
+  border-radius: 8px;
+  padding: 8px;
+  background: #0e181d;
+  color: var(--text);
+}
+
 .credential-field-actions {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -154,6 +178,22 @@ button:disabled {
   border-radius: 8px;
   background: #253540;
   color: var(--text);
+}
+
+#new-credential-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.new-credential-actions {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.new-credential-actions .secondary-action {
+  margin-top: 0;
 }
 
 fieldset {

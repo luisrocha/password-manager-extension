@@ -23,51 +23,85 @@
       </form>
 
       <section id="unlocked-section">
-        <form id="credential-search-form" class="credential-search">
-          <input
-            id="credential-search-input"
-            type="search"
-            placeholder="Search passwords..."
-            autocomplete="off"
-          />
+        <div id="credentials-browser-view">
+          <form id="credential-search-form" class="credential-search">
+            <input
+              id="credential-search-input"
+              type="search"
+              placeholder="Search passwords..."
+              autocomplete="off"
+            />
+          </form>
+
+          <div id="credential-selection" class="credential-selection hidden">
+            <label for="credential-select">Choose account</label>
+            <select id="credential-select"></select>
+          </div>
+
+          <div id="credential-details" class="credential-details hidden">
+            <div class="credential-field">
+              <label for="selected-username">Username</label>
+              <div class="credential-field-actions">
+                <input id="selected-username" type="text" readonly />
+                <button id="copy-username" type="button" class="field-action">Copy</button>
+              </div>
+            </div>
+
+            <div class="credential-field">
+              <label for="selected-password">Password</label>
+              <div class="credential-field-actions">
+                <input id="selected-password" type="text" readonly class="masked" />
+                <button id="toggle-password" type="button" class="field-action">Show</button>
+                <button id="copy-password" type="button" class="field-action">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <button id="fill-now" type="button">Fill credentials</button>
+          <button id="edit-credential" type="button" class="secondary-action hidden">Edit</button>
+          <button id="add-new-credential" type="button" class="secondary-action">Add new credential</button>
+
+          <fieldset>
+            <label>
+              <input id="autofill-on-load" type="checkbox" />
+              Autofill on page load
+            </label>
+            <label>
+              <input id="allow-http" type="checkbox" />
+              Allow autofill on HTTP pages
+            </label>
+          </fieldset>
+        </div>
+
+        <form id="new-credential-form" class="hidden">
+          <h2 id="new-credential-title" class="form-title">Add new credential</h2>
+          <div class="credential-field">
+            <label for="new-credential-username">Username</label>
+            <input
+              id="new-credential-username"
+              type="text"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </div>
+
+          <div class="credential-field">
+            <label for="new-credential-password">Password</label>
+            <input
+              id="new-credential-password"
+              type="password"
+              autocomplete="new-password"
+              spellcheck="false"
+            />
+          </div>
+
+          <div class="new-credential-actions">
+            <button id="save-new-credential" type="submit">Save</button>
+            <button id="delete-credential" type="button" class="danger-action hidden">Delete</button>
+            <button id="cancel-new-credential" type="button" class="secondary-action">Cancel</button>
+          </div>
         </form>
-
-        <div id="credential-selection" class="credential-selection hidden">
-          <label for="credential-select">Choose account</label>
-          <select id="credential-select"></select>
-        </div>
-
-        <div id="credential-details" class="credential-details hidden">
-          <div class="credential-field">
-            <label for="selected-username">Username</label>
-            <div class="credential-field-actions">
-              <input id="selected-username" type="text" readonly />
-              <button id="copy-username" type="button" class="field-action">Copy</button>
-            </div>
-          </div>
-
-          <div class="credential-field">
-            <label for="selected-password">Password</label>
-            <div class="credential-field-actions">
-              <input id="selected-password" type="text" readonly class="masked" />
-              <button id="toggle-password" type="button" class="field-action">Show</button>
-              <button id="copy-password" type="button" class="field-action">Copy</button>
-            </div>
-          </div>
-        </div>
-
-        <button id="fill-now" type="button">Fill credentials</button>
-
-        <fieldset>
-          <label>
-            <input id="autofill-on-load" type="checkbox" />
-            Autofill on page load
-          </label>
-          <label>
-            <input id="allow-http" type="checkbox" />
-            Allow autofill on HTTP pages
-          </label>
-        </fieldset>
       </section>
 
       <p id="status" class="status" aria-live="polite"></p>

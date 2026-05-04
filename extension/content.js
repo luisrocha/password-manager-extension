@@ -17,6 +17,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "EXTRACT_CREDENTIAL") {
+    sendResponse(extractCredentialFromPage());
+    return;
+  }
+
   if (message?.type === "PING") {
     sendResponse({ ok: true });
     return;
@@ -200,6 +205,25 @@ function applyCredential(targets, credential) {
     setInputValue(passwordField, password);
     passwordField.setAttribute(AUTOFILLED_FLAG, "true");
   }
+}
+
+function extractCredentialFromPage() {
+  const detection = detectLoginTargets({ allowAutofilled: true });
+  const username = detection.state === "ready" ? detection.targets.usernameField?.value?.trim() || "" : "";
+  const password = detection.state === "ready" ? detection.targets.passwordField?.value || "" : "";
+
+  return {
+    ok: true,
+    credential: {
+      origin: location.origin,
+      url: location.href,
+      frameUrl: window.location.href,
+      title: document.title,
+      domain: location.hostname,
+      username,
+      password
+    }
+  };
 }
 
 function setInputValue(input, value) {

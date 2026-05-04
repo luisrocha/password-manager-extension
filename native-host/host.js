@@ -45,6 +45,24 @@ async function handleMessage(rawJson) {
     return;
   }
 
+  if (message?.type === "SAVE_CREDENTIAL") {
+    const response = await saveCredential(message.payload || {}, message.authToken);
+    writeNative(response);
+    return;
+  }
+
+  if (message?.type === "UPDATE_CREDENTIAL") {
+    const response = await updateCredential(message.payload || {}, message.authToken);
+    writeNative(response);
+    return;
+  }
+
+  if (message?.type === "DELETE_CREDENTIAL") {
+    const response = await deleteCredential(message.payload || {}, message.authToken);
+    writeNative(response);
+    return;
+  }
+
   if (message?.type === "AUTHENTICATE") {
     const response = await authenticate(message.payload || {});
     writeNative(response);
@@ -98,6 +116,156 @@ async function fetchCredentials(payload, authToken) {
     return {
       ok: true,
       credentials: Array.isArray(parsed.credentials) ? parsed.credentials : []
+    };
+  } catch (error) {
+    if (error.name === "AbortError") {
+      return { ok: false, error: "Password manager API timed out" };
+    }
+    return { ok: false, error: error.message || "Bridge request failed" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function saveCredential(payload, authToken) {
+  const bearerToken = authToken || API_TOKEN;
+  if (!bearerToken) {
+    return { ok: false, code: "auth_required", error: "Unlock required" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_URL}/api/browser/credentials`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${bearerToken}`
+      },
+      body: JSON.stringify({
+        name: payload.name,
+        displayName: payload.displayName,
+        domain: payload.domain,
+        origin: payload.origin,
+        url: payload.url,
+        title: payload.title,
+        frameUrl: payload.frameUrl,
+        username: payload.username,
+        password: payload.password,
+        notes: payload.notes
+      }),
+      signal: controller.signal
+    });
+
+    const parsed = await safeJson(response);
+    if (!response.ok) {
+      return {
+        ok: false,
+        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
+        error: parsed?.error || `Password manager API returned ${response.status}`
+      };
+    }
+
+    return {
+      ok: true,
+      credential: parsed?.credential || null
+    };
+  } catch (error) {
+    if (error.name === "AbortError") {
+      return { ok: false, error: "Password manager API timed out" };
+    }
+    return { ok: false, error: error.message || "Bridge request failed" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function updateCredential(payload, authToken) {
+  const bearerToken = authToken || API_TOKEN;
+  if (!bearerToken) {
+    return { ok: false, code: "auth_required", error: "Unlock required" };
+  }
+
+  if (!payload.id) {
+    return { ok: false, code: "invalid_request", error: "Credential id is required" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_URL}/api/browser/credentials/${payload.id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${bearerToken}`
+      },
+      body: JSON.stringify({
+        username: payload.username,
+        password: payload.password,
+        notes: payload.notes
+      }),
+      signal: controller.signal
+    });
+
+    const parsed = await safeJson(response);
+    if (!response.ok) {
+      return {
+        ok: false,
+        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
+        error: parsed?.error || `Password manager API returned ${response.status}`
+      };
+    }
+
+    return {
+      ok: true,
+      credential: parsed?.credential || null
+    };
+  } catch (error) {
+    if (error.name === "AbortError") {
+      return { ok: false, error: "Password manager API timed out" };
+    }
+    return { ok: false, error: error.message || "Bridge request failed" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function deleteCredential(payload, authToken) {
+  const bearerToken = authToken || API_TOKEN;
+  if (!bearerToken) {
+    return { ok: false, code: "auth_required", error: "Unlock required" };
+  }
+
+  if (!payload.id) {
+    return { ok: false, code: "invalid_request", error: "Credential id is required" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_URL}/api/browser/credentials/${payload.id}`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${bearerToken}`
+      },
+      signal: controller.signal
+    });
+
+    const parsed = await safeJson(response);
+    if (!response.ok) {
+      return {
+        ok: false,
+        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
+        error: parsed?.error || `Password manager API returned ${response.status}`
+      };
+    }
+
+    return {
+      ok: true,
+      credential: parsed?.credential || null
     };
   } catch (error) {
     if (error.name === "AbortError") {

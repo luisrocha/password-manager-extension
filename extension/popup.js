@@ -5,6 +5,8 @@ const lockedSectionEl = unlockFormEl;
 const unlockedSectionEl = document.getElementById("unlocked-section");
 const masterPasswordInput = document.getElementById("master-password");
 const fillNowButton = document.getElementById("fill-now");
+const editCredentialButton = document.getElementById("edit-credential");
+const credentialsBrowserViewEl = document.getElementById("credentials-browser-view");
 const credentialSearchFormEl = document.getElementById("credential-search-form");
 const credentialSearchInputEl = document.getElementById("credential-search-input");
 const credentialSelectionEl = document.getElementById("credential-selection");
@@ -15,11 +17,21 @@ const selectedPasswordInput = document.getElementById("selected-password");
 const copyUsernameButton = document.getElementById("copy-username");
 const copyPasswordButton = document.getElementById("copy-password");
 const togglePasswordButton = document.getElementById("toggle-password");
+const addNewCredentialButton = document.getElementById("add-new-credential");
+const newCredentialFormEl = document.getElementById("new-credential-form");
+const newCredentialTitleEl = document.getElementById("new-credential-title");
+const newCredentialUsernameInput = document.getElementById("new-credential-username");
+const newCredentialPasswordInput = document.getElementById("new-credential-password");
+const cancelNewCredentialButton = document.getElementById("cancel-new-credential");
+const deleteCredentialButton = document.getElementById("delete-credential");
 const autofillOnLoadInput = document.getElementById("autofill-on-load");
 const allowHttpInput = document.getElementById("allow-http");
 
 let activeTabId = null;
 let listedCredentials = [];
+let currentPageContext = emptyPageContext();
+let credentialFormMode = "create";
+let editingCredentialId = null;
 
 init().catch((error) => setStatus(error.message, true));
 
@@ -37,6 +49,11 @@ async function init() {
   autofillOnLoadInput.addEventListener("change", saveSettings);
   allowHttpInput.addEventListener("change", saveSettings);
   fillNowButton.addEventListener("click", onFillNow);
+  editCredentialButton.addEventListener("click", onEditCredential);
+  addNewCredentialButton.addEventListener("click", onAddNewCredential);
+  newCredentialFormEl.addEventListener("submit", onNewCredentialSubmit);
+  cancelNewCredentialButton.addEventListener("click", onCancelNewCredential);
+  deleteCredentialButton.addEventListener("click", onDeleteCredential);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
   credentialSearchFormEl.addEventListener("submit", onCredentialSearchSubmit);
   credentialSelectEl.addEventListener("change", onCredentialSelectionChange);
@@ -132,6 +149,122 @@ async function onUnlock() {
   setStatus("Extension unlocked");
 }
 
+async function onAddNewCredential() {
+  if (!activeTabId) {
+    setStatus("No active tab found", true);
+    return;
+  }
+
+  currentPageContext = await extractCurrentPageContext();
+  credentialFormMode = "create";
+  editingCredentialId = null;
+  newCredentialUsernameInput.value = currentPageContext.username || "";
+  newCredentialPasswordInput.value = currentPageContext.password || "";
+  showNewCredentialForm("Add new credential");
+  setStatus("Add the username and password, then click Save.");
+}
+
+async function onNewCredentialSubmit(event) {
+  event.preventDefault();
+
+  const username = newCredentialUsernameInput.value.trim();
+  const password = newCredentialPasswordInput.value;
+
+  if (!password) {
+    setStatus("Password is required", true);
+    newCredentialPasswordInput.focus();
+    return;
+  }
+
+  const saveResponse = credentialFormMode === "edit"
+    ? await chrome.runtime.sendMessage({
+      type: "UPDATE_CREDENTIAL",
+      payload: {
+        id: editingCredentialId,
+        username,
+        password
+      }
+    })
+    : await chrome.runtime.sendMessage({
+      type: "SAVE_CREDENTIAL",
+      payload: {
+        ...currentPageContext,
+        username,
+        password
+      }
+    });
+
+  if (!saveResponse?.ok) {
+    if (saveResponse?.code === "auth_required") {
+      await refreshAuthState();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
+    setStatus(saveResponse?.error || "Failed to save credential", true);
+    return;
+  }
+
+  const savedCredentialId = saveResponse.credential?.id || null;
+  const savedName = saveResponse.credential?.displayName || currentPageContext.title || "credential";
+  hideNewCredentialForm({ clearValues: true });
+  credentialSearchInputEl.value = "";
+  await loadCredentialOptions({ selectedCredentialId: savedCredentialId });
+  setStatus(`Saved: ${savedName}`);
+}
+
+function onCancelNewCredential() {
+  hideNewCredentialForm({ clearValues: true });
+}
+
+function onEditCredential() {
+  const selectedCredential = getSelectedCredential();
+  if (!selectedCredential) {
+    setStatus("Select an account first.", true);
+    return;
+  }
+
+  credentialFormMode = "edit";
+  editingCredentialId = selectedCredential.id;
+  newCredentialUsernameInput.value = selectedCredential.username || "";
+  newCredentialPasswordInput.value = selectedCredential.password || "";
+  showNewCredentialForm("Edit credential");
+  setStatus("Update the username or password, then click Save.");
+}
+
+async function onDeleteCredential() {
+  if (credentialFormMode !== "edit" || !editingCredentialId) {
+    setStatus("No credential selected for deletion", true);
+    return;
+  }
+
+  const deleteResponse = await chrome.runtime.sendMessage({
+    type: "DELETE_CREDENTIAL",
+    payload: {
+      id: editingCredentialId
+    }
+  });
+
+  if (!deleteResponse?.ok) {
+    if (deleteResponse?.code === "auth_required") {
+      await refreshAuthState();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
+    setStatus(deleteResponse?.error || "Failed to delete credential", true);
+    return;
+  }
+
+  const deletedName = deleteResponse.credential?.displayName || "credential";
+  hideNewCredentialForm({ clearValues: true });
+  credentialSearchInputEl.value = "";
+  await loadCredentialOptions();
+  setStatus(`Deleted: ${deletedName}`);
+}
+
 async function onUnlockSubmit(event) {
   event.preventDefault();
   await onUnlock();
@@ -146,14 +279,15 @@ async function refreshAuthState() {
 
   if (!unlocked) {
     hideCredentialSelection();
-    setFillButtonHasCredentials(false);
+    hideNewCredentialForm({ clearValues: true });
+    setCredentialActionState(false);
     masterPasswordInput.focus();
   }
 
   return unlocked;
 }
 
-function showCredentialSelection(credentials) {
+function showCredentialSelection(credentials, options = {}) {
   listedCredentials = credentials.map((credential) => ({
     id: credential.id,
     displayName: credential.displayName || "",
@@ -170,9 +304,14 @@ function showCredentialSelection(credentials) {
     credentialSelectEl.append(option);
   });
 
+  if (options.selectedCredentialId) {
+    const hasMatchingCredential = listedCredentials.some((credential) => credential.id === options.selectedCredentialId);
+    if (hasMatchingCredential) credentialSelectEl.value = options.selectedCredentialId;
+  }
+
   credentialSelectionEl.classList.remove("hidden");
   renderSelectedCredentialDetails();
-  setFillButtonHasCredentials(true);
+  setCredentialActionState(true);
 }
 
 function hideCredentialSelection() {
@@ -180,7 +319,7 @@ function hideCredentialSelection() {
   credentialSelectionEl.classList.add("hidden");
   credentialSelectEl.innerHTML = "";
   hideCredentialDetails();
-  setFillButtonHasCredentials(false);
+  setCredentialActionState(false);
 }
 
 function formatCredentialOption(credential) {
@@ -190,7 +329,7 @@ function formatCredentialOption(credential) {
   return `${name} (${credential.username})${domain}`;
 }
 
-async function loadCredentialOptions() {
+async function loadCredentialOptions(options = {}) {
   if (!activeTabId) {
     hideCredentialSelection();
     return;
@@ -213,16 +352,40 @@ async function loadCredentialOptions() {
       return;
     }
 
-    showCredentialSelection(credentials);
+    showCredentialSelection(credentials, options);
   } catch {
     hideCredentialSelection();
     setStatus("This page does not support autofill", true);
   }
 }
 
-function setFillButtonHasCredentials(hasCredentials) {
+function setCredentialActionState(hasCredentials) {
   fillNowButton.disabled = !hasCredentials;
   fillNowButton.textContent = hasCredentials ? "Fill credentials" : "No credentials found";
+  editCredentialButton.classList.toggle("hidden", !hasCredentials);
+  editCredentialButton.disabled = !hasCredentials;
+}
+
+function showNewCredentialForm(title) {
+  credentialsBrowserViewEl.classList.add("hidden");
+  newCredentialFormEl.classList.remove("hidden");
+  newCredentialTitleEl.textContent = title;
+  deleteCredentialButton.classList.toggle("hidden", credentialFormMode !== "edit");
+  newCredentialUsernameInput.focus();
+}
+
+function hideNewCredentialForm(options = {}) {
+  credentialsBrowserViewEl.classList.remove("hidden");
+  newCredentialFormEl.classList.add("hidden");
+  deleteCredentialButton.classList.add("hidden");
+
+  if (options.clearValues) {
+    credentialFormMode = "create";
+    editingCredentialId = null;
+    newCredentialUsernameInput.value = "";
+    newCredentialPasswordInput.value = "";
+    currentPageContext = emptyPageContext();
+  }
 }
 
 function onCredentialSelectionChange() {
@@ -261,6 +424,7 @@ function hideCredentialDetails() {
   selectedPasswordInput.value = "";
   selectedPasswordInput.classList.add("masked");
   togglePasswordButton.textContent = "Show";
+  editCredentialButton.disabled = true;
 }
 
 async function onCopyUsername() {
@@ -333,4 +497,35 @@ async function copyToClipboard(value, successMessage) {
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.classList.toggle("error", Boolean(isError));
+}
+
+async function extractCurrentPageContext() {
+  try {
+    const response = await chrome.tabs.sendMessage(activeTabId, { type: "EXTRACT_CREDENTIAL" });
+    if (response?.ok && response.credential) {
+      return {
+        ...emptyPageContext(),
+        ...response.credential
+      };
+    }
+  } catch {
+    // Keep manual entry available even when the content script cannot inspect the page.
+  }
+
+  return {
+    ...emptyPageContext(),
+    origin: siteEl.textContent === "No active site" ? "" : siteEl.textContent
+  };
+}
+
+function emptyPageContext() {
+  return {
+    origin: "",
+    url: "",
+    frameUrl: "",
+    title: "",
+    domain: "",
+    username: "",
+    password: ""
+  };
 }
