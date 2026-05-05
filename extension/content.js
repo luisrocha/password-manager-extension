@@ -114,11 +114,6 @@ async function fillCredentials(options = {}) {
 }
 
 async function listCredentials() {
-  const detection = detectLoginTargets({ allowAutofilled: true });
-  if (detection.state === "no_valid_login_fields") {
-    return { ok: false, error: "No valid login fields found" };
-  }
-
   const response = await fetchSiteCredentials();
   if (!response?.ok) {
     return {
