@@ -64,6 +64,10 @@ button:disabled {
   color: #ffe5e7;
 }
 
+.danger-action.confirming {
+  background: #7a121d;
+}
+
 .master-password {
   display: grid;
   gap: 6px;
@@ -194,6 +198,12 @@ button:disabled {
 
 .new-credential-actions .secondary-action {
   margin-top: 0;
+}
+
+.delete-warning {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: #ffb3ba;
 }
 
 fieldset {

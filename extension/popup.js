@@ -24,6 +24,7 @@ const newCredentialUsernameInput = document.getElementById("new-credential-usern
 const newCredentialPasswordInput = document.getElementById("new-credential-password");
 const cancelNewCredentialButton = document.getElementById("cancel-new-credential");
 const deleteCredentialButton = document.getElementById("delete-credential");
+const deleteWarningEl = document.getElementById("delete-warning");
 const autofillOnLoadInput = document.getElementById("autofill-on-load");
 const allowHttpInput = document.getElementById("allow-http");
 
@@ -32,6 +33,7 @@ let listedCredentials = [];
 let currentPageContext = emptyPageContext();
 let credentialFormMode = "create";
 let editingCredentialId = null;
+let deleteConfirmationPending = false;
 
 init().catch((error) => setStatus(error.message, true));
 
@@ -216,6 +218,7 @@ async function onNewCredentialSubmit(event) {
 
 function onCancelNewCredential() {
   hideNewCredentialForm({ clearValues: true });
+  setStatus("");
 }
 
 function onEditCredential() {
@@ -236,6 +239,14 @@ function onEditCredential() {
 async function onDeleteCredential() {
   if (credentialFormMode !== "edit" || !editingCredentialId) {
     setStatus("No credential selected for deletion", true);
+    return;
+  }
+
+  if (!deleteConfirmationPending) {
+    deleteConfirmationPending = true;
+    deleteCredentialButton.textContent = "Confirm delete";
+    deleteCredentialButton.classList.add("confirming");
+    deleteWarningEl.classList.remove("hidden");
     return;
   }
 
@@ -371,6 +382,7 @@ function showNewCredentialForm(title) {
   newCredentialFormEl.classList.remove("hidden");
   newCredentialTitleEl.textContent = title;
   deleteCredentialButton.classList.toggle("hidden", credentialFormMode !== "edit");
+  resetDeleteConfirmationState();
   newCredentialUsernameInput.focus();
 }
 
@@ -378,6 +390,7 @@ function hideNewCredentialForm(options = {}) {
   credentialsBrowserViewEl.classList.remove("hidden");
   newCredentialFormEl.classList.add("hidden");
   deleteCredentialButton.classList.add("hidden");
+  resetDeleteConfirmationState();
 
   if (options.clearValues) {
     credentialFormMode = "create";
@@ -416,6 +429,13 @@ function getSelectedCredential() {
   const selectedCredentialId = getSelectedCredentialId();
   if (!selectedCredentialId) return null;
   return listedCredentials.find((credential) => credential.id === selectedCredentialId) || null;
+}
+
+function resetDeleteConfirmationState() {
+  deleteConfirmationPending = false;
+  deleteCredentialButton.textContent = "Delete";
+  deleteCredentialButton.classList.remove("confirming");
+  deleteWarningEl.classList.add("hidden");
 }
 
 function hideCredentialDetails() {
