@@ -91,7 +91,20 @@ async function onFillNow() {
   }
 
   const selectedCredentialId = getSelectedCredentialId();
-  const selectedCredential = getSelectedCredential();
+  const selectedCredentialResponse = await ensureCredentialDetail(selectedCredentialId);
+  if (!selectedCredentialResponse.ok) {
+    if (selectedCredentialResponse.code === "auth_required") {
+      await refreshAuthState();
+      hideCredentialSelection();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
+    setStatus(selectedCredentialResponse.error || "Failed to load credential", true);
+    return;
+  }
+  const selectedCredential = selectedCredentialResponse.credential;
 
   if (!selectedCredentialId) {
     setStatus("Select an account first.", true);
@@ -222,18 +235,7 @@ function onCancelNewCredential() {
 }
 
 function onEditCredential() {
-  const selectedCredential = getSelectedCredential();
-  if (!selectedCredential) {
-    setStatus("Select an account first.", true);
-    return;
-  }
-
-  credentialFormMode = "edit";
-  editingCredentialId = selectedCredential.id;
-  newCredentialUsernameInput.value = selectedCredential.username || "";
-  newCredentialPasswordInput.value = selectedCredential.password || "";
-  showNewCredentialForm("Edit credential");
-  setStatus("Update the username or password, then click Save.");
+  void openSelectedCredentialForEdit();
 }
 
 async function onDeleteCredential() {
@@ -321,7 +323,7 @@ function showCredentialSelection(credentials, options = {}) {
   }
 
   credentialSelectionEl.classList.remove("hidden");
-  renderSelectedCredentialDetails();
+  void renderSelectedCredentialDetails();
   setCredentialActionState(true);
 }
 
@@ -402,18 +404,34 @@ function hideNewCredentialForm(options = {}) {
 }
 
 function onCredentialSelectionChange() {
-  renderSelectedCredentialDetails();
+  void renderSelectedCredentialDetails();
 }
 
-function renderSelectedCredentialDetails() {
+async function renderSelectedCredentialDetails() {
   const selectedCredential = getSelectedCredential();
   if (!selectedCredential) {
     hideCredentialDetails();
     return;
   }
 
-  selectedUsernameInput.value = selectedCredential.username || "";
-  selectedPasswordInput.value = selectedCredential.password || "";
+  const detailResponse = await ensureCredentialDetail(selectedCredential.id);
+  if (!detailResponse.ok) {
+    if (detailResponse.code === "auth_required") {
+      await refreshAuthState();
+      hideCredentialSelection();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
+    hideCredentialDetails();
+    setStatus(detailResponse.error || "Failed to load credential", true);
+    return;
+  }
+
+  const detailedCredential = detailResponse.credential;
+  selectedUsernameInput.value = detailedCredential.username || "";
+  selectedPasswordInput.value = detailedCredential.password || "";
   selectedPasswordInput.classList.add("masked");
   togglePasswordButton.textContent = "Show";
   credentialDetailsEl.classList.remove("hidden");
@@ -429,6 +447,40 @@ function getSelectedCredential() {
   const selectedCredentialId = getSelectedCredentialId();
   if (!selectedCredentialId) return null;
   return listedCredentials.find((credential) => credential.id === selectedCredentialId) || null;
+}
+
+async function ensureCredentialDetail(credentialId) {
+  const credential = listedCredentials.find((item) => item.id === credentialId);
+  if (!credential) {
+    return { ok: false, error: "Credential not found" };
+  }
+
+  if (credential.password) {
+    return { ok: true, credential };
+  }
+
+  const response = await chrome.runtime.sendMessage({
+    type: "GET_CREDENTIAL_DETAIL",
+    credentialId
+  });
+  if (!response?.ok || !response.credential) {
+    return {
+      ok: false,
+      code: response?.code,
+      error: response?.error || "Failed to load credential"
+    };
+  }
+
+  const index = listedCredentials.findIndex((item) => item.id === credentialId);
+  if (index >= 0) {
+    listedCredentials[index] = {
+      ...listedCredentials[index],
+      username: response.credential.username || "",
+      password: response.credential.password || ""
+    };
+  }
+
+  return { ok: true, credential: listedCredentials[index] };
 }
 
 function resetDeleteConfirmationState() {
@@ -536,6 +588,36 @@ async function extractCurrentPageContext() {
     ...emptyPageContext(),
     origin: siteEl.textContent === "No active site" ? "" : siteEl.textContent
   };
+}
+
+async function openSelectedCredentialForEdit() {
+  const selectedCredentialId = getSelectedCredentialId();
+  if (!selectedCredentialId) {
+    setStatus("Select an account first.", true);
+    return;
+  }
+
+  const detailResponse = await ensureCredentialDetail(selectedCredentialId);
+  if (!detailResponse.ok) {
+    if (detailResponse.code === "auth_required") {
+      await refreshAuthState();
+      hideCredentialSelection();
+      setStatus("Unlock required. Enter master password.", true);
+      masterPasswordInput.focus();
+      return;
+    }
+
+    setStatus(detailResponse.error || "Failed to load credential", true);
+    return;
+  }
+
+  const selectedCredential = detailResponse.credential;
+  credentialFormMode = "edit";
+  editingCredentialId = selectedCredential.id;
+  newCredentialUsernameInput.value = selectedCredential.username || "";
+  newCredentialPasswordInput.value = selectedCredential.password || "";
+  showNewCredentialForm("Edit credential");
+  setStatus("Update the username or password, then click Save.");
 }
 
 function emptyPageContext() {

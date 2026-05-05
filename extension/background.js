@@ -55,6 +55,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "GET_CREDENTIAL_DETAIL") {
+    requestNativeCredentialDetail(message.credentialId)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "SAVE_CREDENTIAL") {
     saveNativeCredential(message.payload)
       .then((response) => sendResponse(response))
@@ -165,6 +172,58 @@ async function requestNativeCredentials(payload = {}) {
         resolve({
           ok: true,
           credentials: Array.isArray(response.credentials) ? response.credentials : []
+        });
+      }
+    );
+  });
+}
+
+async function requestNativeCredentialDetail(credentialId) {
+  const auth = await getAuthState();
+  if (!auth?.token) {
+    return { ok: false, error: "Unlock required", code: "auth_required" };
+  }
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(
+      NATIVE_APP_NAME,
+      {
+        type: "GET_CREDENTIAL_DETAIL",
+        authToken: auth.token,
+        payload: { id: credentialId }
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({
+            ok: false,
+            error: chrome.runtime.lastError.message || "Native host unavailable"
+          });
+          return;
+        }
+
+        if (!response || response.ok === false) {
+          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+            clearAuthState().then(() => {
+              resolve({
+                ok: false,
+                code: "auth_required",
+                error: "Session expired. Unlock again."
+              });
+            });
+            return;
+          }
+
+          resolve({
+            ok: false,
+            code: response?.code,
+            error: response?.error || "Native host returned no data"
+          });
+          return;
+        }
+
+        resolve({
+          ok: true,
+          credential: response.credential || null
         });
       }
     );

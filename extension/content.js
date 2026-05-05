@@ -101,15 +101,26 @@ async function fillCredentials(options = {}) {
         id: item.id,
         displayName: item.displayName || "",
         username: item.username || "",
-        password: item.password || ""
+        domain: item.domain || ""
       }))
     };
   }
 
-  applyCredential(formTargets, credential);
+  const resolvedCredential = credential.password
+    ? credential
+    : await fetchCredentialDetail(credential.id);
+  if (!resolvedCredential?.ok) {
+    return {
+      ok: false,
+      code: resolvedCredential?.code,
+      error: resolvedCredential?.error || "Could not fetch credential details"
+    };
+  }
+
+  applyCredential(formTargets, resolvedCredential.credential);
   return {
     ok: true,
-    account: credential.displayName || credential.username || "Account"
+    account: resolvedCredential.credential.displayName || resolvedCredential.credential.username || "Account"
   };
 }
 
@@ -144,6 +155,13 @@ async function fetchSiteCredentials() {
       title: document.title,
       frameUrl: window.location.href
     }
+  });
+}
+
+async function fetchCredentialDetail(credentialId) {
+  return chrome.runtime.sendMessage({
+    type: "GET_CREDENTIAL_DETAIL",
+    credentialId
   });
 }
 

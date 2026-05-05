@@ -15,6 +15,7 @@ A Chromium MV3 extension + Native Messaging bridge that requests credentials fro
 2. Background service worker sends a Native Messaging request to `com.password_manager`.
 3. Native host calls your password-manager API endpoint:
    - `POST /api/browser/credentials/search`
+   - `GET /api/browser/credentials/:id`
    - `POST /api/browser/credentials`
 4. Extension receives credentials and fills username/password fields.
 5. The popup can open a dedicated add-credential form, optionally prefilled from the current page, and save it into the password manager.
@@ -125,14 +126,27 @@ Response body:
     {
       "id": "cred_123",
       "displayName": "Personal",
-      "username": "user@example.com",
-      "password": "super-secret"
+      "username": "user@example.com"
     }
   ]
 }
 ```
 
 If credentials match the current domain, the popup loads them into an account picker so the user can select one before clicking fill.
+
+Response body (`GET /api/browser/credentials/:id`):
+
+```json
+{
+  "credential": {
+    "id": "cred_123",
+    "displayName": "Personal",
+    "domain": "example.com",
+    "username": "user@example.com",
+    "password": "super-secret"
+  }
+}
+```
 
 Request body (`POST /api/browser/credentials`):
 
