@@ -7,6 +7,10 @@
   --error: #ff6b6b;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   background: radial-gradient(circle at top, #1a2730 0%, var(--bg) 70%);
@@ -17,6 +21,7 @@ body {
 
 .popup {
   width: clamp(360px, 92vw, 520px);
+  max-width: 520px;
   padding: 14px;
 }
 
@@ -142,6 +147,7 @@ button:disabled {
 .credential-field {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .credential-field label {
@@ -162,9 +168,15 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 6px;
+  min-width: 0;
+}
+
+.password-generator-field {
+  grid-template-columns: 1fr auto auto;
 }
 
 .credential-field-actions input {
+  min-width: 0;
   border: 1px solid #253540;
   border-radius: 8px;
   padding: 8px;
@@ -182,6 +194,63 @@ button:disabled {
   border-radius: 8px;
   background: #253540;
   color: var(--text);
+}
+
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+}
+
+.icon-action::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask: var(--icon-url) center / contain no-repeat;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+}
+
+.password-generator-popup {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid #314654;
+  border-radius: 8px;
+  background: #121d23;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.26);
+}
+
+.password-generator-popup label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.password-generator-popup input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  accent-color: var(--accent);
+}
+
+.password-generator-popup .generator-option {
+  justify-content: flex-start;
+}
+
+#password-length-value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.password-generator-popup button {
+  margin-top: 2px;
 }
 
 #new-credential-form {

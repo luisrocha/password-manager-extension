@@ -43,7 +43,7 @@
               <label for="selected-username">Username</label>
               <div class="credential-field-actions">
                 <input id="selected-username" type="text" readonly />
-                <button id="copy-username" type="button" class="field-action">Copy</button>
+                <button id="copy-username" type="button" class="field-action icon-action" aria-label="Copy username" title="Copy username"></button>
               </div>
             </div>
 
@@ -51,8 +51,8 @@
               <label for="selected-password">Password</label>
               <div class="credential-field-actions">
                 <input id="selected-password" type="text" readonly class="masked" />
-                <button id="toggle-password" type="button" class="field-action">Show</button>
-                <button id="copy-password" type="button" class="field-action">Copy</button>
+                <button id="toggle-password" type="button" class="field-action icon-action" aria-label="Show password" title="Show password"></button>
+                <button id="copy-password" type="button" class="field-action icon-action" aria-label="Copy password" title="Copy password"></button>
               </div>
             </div>
           </div>
@@ -99,12 +99,46 @@
 
           <div class="credential-field">
             <label for="new-credential-password">Password</label>
-            <input
-              id="new-credential-password"
-              type="password"
-              autocomplete="new-password"
-              spellcheck="false"
-            />
+            <div class="credential-field-actions password-generator-field">
+              <input
+                id="new-credential-password"
+                type="password"
+                autocomplete="new-password"
+                spellcheck="false"
+              />
+              <button
+                id="toggle-new-credential-password"
+                type="button"
+                class="field-action icon-action"
+                aria-label="Show password"
+                title="Show password"
+              ></button>
+              <button
+                id="open-password-generator"
+                type="button"
+                class="field-action icon-action"
+                aria-label="Generate password"
+                aria-expanded="false"
+                aria-controls="password-generator-popup"
+                title="Generate password"
+              ></button>
+            </div>
+            <div id="password-generator-popup" class="password-generator-popup hidden">
+              <label class="generator-length">
+                Characters
+                <span id="password-length-value">20</span>
+              </label>
+              <input id="password-length" type="range" min="8" max="100" value="20" />
+              <label class="generator-option">
+                Include numbers
+                <input id="password-include-numbers" type="checkbox" checked />
+              </label>
+              <label class="generator-option">
+                Include symbols
+                <input id="password-include-symbols" type="checkbox" />
+              </label>
+              <button id="generate-password" type="button">Generate password</button>
+            </div>
           </div>
 
           <div class="new-credential-actions">

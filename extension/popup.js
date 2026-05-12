@@ -23,11 +23,32 @@ const newCredentialTitleEl = document.getElementById("new-credential-title");
 const newCredentialNameInput = document.getElementById("new-credential-name");
 const newCredentialUsernameInput = document.getElementById("new-credential-username");
 const newCredentialPasswordInput = document.getElementById("new-credential-password");
+const toggleNewCredentialPasswordButton = document.getElementById("toggle-new-credential-password");
+const openPasswordGeneratorButton = document.getElementById("open-password-generator");
+const passwordGeneratorPopupEl = document.getElementById("password-generator-popup");
+const passwordLengthInput = document.getElementById("password-length");
+const passwordLengthValueEl = document.getElementById("password-length-value");
+const passwordIncludeNumbersInput = document.getElementById("password-include-numbers");
+const passwordIncludeSymbolsInput = document.getElementById("password-include-symbols");
+const generatePasswordButton = document.getElementById("generate-password");
 const cancelNewCredentialButton = document.getElementById("cancel-new-credential");
 const deleteCredentialButton = document.getElementById("delete-credential");
 const deleteWarningEl = document.getElementById("delete-warning");
 const autofillOnLoadInput = document.getElementById("autofill-on-load");
 const allowHttpInput = document.getElementById("allow-http");
+
+const DEFAULT_GENERATED_PASSWORD_LENGTH = 20;
+const MIN_GENERATED_PASSWORD_LENGTH = 8;
+const MAX_GENERATED_PASSWORD_LENGTH = 100;
+const PASSWORD_LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const PASSWORD_NUMBERS = "0123456789";
+const PASSWORD_SYMBOLS = "!@#$%^&*()-_=+[]{};:,.<>?";
+const ICONS = {
+  copy: "icons/copy.svg",
+  generate: "icons/sparkles.svg",
+  hide: "icons/eye-off.svg",
+  show: "icons/eye.svg"
+};
 
 let activeTabId = null;
 let listedCredentials = [];
@@ -49,12 +70,22 @@ async function init() {
     allowHttpInput.checked = Boolean(settingsResp.settings.allowHttp);
   }
 
+  setIconButton(openPasswordGeneratorButton, "generate", "Generate password");
+  setIconButton(copyUsernameButton, "copy", "Copy username");
+  setIconButton(copyPasswordButton, "copy", "Copy password");
+  setPasswordVisibilityButton(togglePasswordButton, false);
+  setPasswordVisibilityButton(toggleNewCredentialPasswordButton, false);
+
   autofillOnLoadInput.addEventListener("change", saveSettings);
   allowHttpInput.addEventListener("change", saveSettings);
   fillNowButton.addEventListener("click", onFillNow);
   editCredentialButton.addEventListener("click", onEditCredential);
   addNewCredentialButton.addEventListener("click", onAddNewCredential);
   newCredentialFormEl.addEventListener("submit", onNewCredentialSubmit);
+  toggleNewCredentialPasswordButton.addEventListener("click", onToggleNewCredentialPasswordVisibility);
+  openPasswordGeneratorButton.addEventListener("click", onOpenPasswordGenerator);
+  passwordLengthInput.addEventListener("input", onPasswordLengthChange);
+  generatePasswordButton.addEventListener("click", onGeneratePassword);
   cancelNewCredentialButton.addEventListener("click", onCancelNewCredential);
   deleteCredentialButton.addEventListener("click", onDeleteCredential);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
@@ -390,6 +421,9 @@ function showNewCredentialForm(title) {
   newCredentialTitleEl.textContent = title;
   deleteCredentialButton.classList.toggle("hidden", credentialFormMode !== "edit");
   resetDeleteConfirmationState();
+  resetNewCredentialPasswordVisibility();
+  resetPasswordGeneratorOptions();
+  hidePasswordGenerator();
   newCredentialNameInput.focus();
 }
 
@@ -398,6 +432,8 @@ function hideNewCredentialForm(options = {}) {
   newCredentialFormEl.classList.add("hidden");
   deleteCredentialButton.classList.add("hidden");
   resetDeleteConfirmationState();
+  resetNewCredentialPasswordVisibility();
+  hidePasswordGenerator();
 
   if (options.clearValues) {
     credentialFormMode = "create";
@@ -439,7 +475,7 @@ async function renderSelectedCredentialDetails() {
   selectedUsernameInput.value = detailedCredential.username || "";
   selectedPasswordInput.value = detailedCredential.password || "";
   selectedPasswordInput.classList.add("masked");
-  togglePasswordButton.textContent = "Show";
+  setPasswordVisibilityButton(togglePasswordButton, false);
   credentialDetailsEl.classList.remove("hidden");
 }
 
@@ -502,7 +538,7 @@ function hideCredentialDetails() {
   selectedUsernameInput.value = "";
   selectedPasswordInput.value = "";
   selectedPasswordInput.classList.add("masked");
-  togglePasswordButton.textContent = "Show";
+  setPasswordVisibilityButton(togglePasswordButton, false);
   editCredentialButton.disabled = true;
 }
 
@@ -556,7 +592,117 @@ async function onCopyPassword() {
 function onTogglePasswordVisibility() {
   const isHidden = selectedPasswordInput.classList.contains("masked");
   selectedPasswordInput.classList.toggle("masked", !isHidden);
-  togglePasswordButton.textContent = isHidden ? "Hide" : "Show";
+  setPasswordVisibilityButton(togglePasswordButton, isHidden);
+}
+
+function onToggleNewCredentialPasswordVisibility() {
+  const isHidden = newCredentialPasswordInput.type === "password";
+  newCredentialPasswordInput.type = isHidden ? "text" : "password";
+  setPasswordVisibilityButton(toggleNewCredentialPasswordButton, isHidden);
+}
+
+function resetNewCredentialPasswordVisibility() {
+  newCredentialPasswordInput.type = "password";
+  setPasswordVisibilityButton(toggleNewCredentialPasswordButton, false);
+}
+
+function setPasswordVisibilityButton(button, isVisible) {
+  setIconButton(button, isVisible ? "hide" : "show", isVisible ? "Hide password" : "Show password");
+}
+
+function setIconButton(button, icon, label) {
+  button.style.setProperty("--icon-url", `url("${ICONS[icon]}")`);
+  button.setAttribute("aria-label", label);
+  button.title = label;
+}
+
+function onOpenPasswordGenerator() {
+  const willShow = passwordGeneratorPopupEl.classList.contains("hidden");
+  passwordGeneratorPopupEl.classList.toggle("hidden", !willShow);
+  openPasswordGeneratorButton.setAttribute("aria-expanded", String(willShow));
+
+  if (willShow) {
+    passwordLengthInput.focus();
+  }
+}
+
+function hidePasswordGenerator() {
+  passwordGeneratorPopupEl.classList.add("hidden");
+  openPasswordGeneratorButton.setAttribute("aria-expanded", "false");
+}
+
+function resetPasswordGeneratorOptions() {
+  passwordLengthInput.value = String(DEFAULT_GENERATED_PASSWORD_LENGTH);
+  updatePasswordLengthValue();
+  passwordIncludeNumbersInput.checked = true;
+  passwordIncludeSymbolsInput.checked = false;
+}
+
+function onPasswordLengthChange() {
+  updatePasswordLengthValue();
+}
+
+function updatePasswordLengthValue() {
+  passwordLengthValueEl.textContent = String(normalizedGeneratedPasswordLength(passwordLengthInput.value));
+}
+
+function onGeneratePassword() {
+  const length = normalizedGeneratedPasswordLength(passwordLengthInput.value);
+  passwordLengthInput.value = String(length);
+  updatePasswordLengthValue();
+  newCredentialPasswordInput.value = generatePassword({
+    length,
+    includeNumbers: passwordIncludeNumbersInput.checked,
+    includeSymbols: passwordIncludeSymbolsInput.checked
+  });
+  hidePasswordGenerator();
+  newCredentialPasswordInput.focus();
+  setStatus("Generated password");
+}
+
+function normalizedGeneratedPasswordLength(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return DEFAULT_GENERATED_PASSWORD_LENGTH;
+  return Math.min(Math.max(parsed, MIN_GENERATED_PASSWORD_LENGTH), MAX_GENERATED_PASSWORD_LENGTH);
+}
+
+function generatePassword(options) {
+  const requiredSets = [PASSWORD_LETTERS];
+  if (options.includeNumbers) requiredSets.push(PASSWORD_NUMBERS);
+  if (options.includeSymbols) requiredSets.push(PASSWORD_SYMBOLS);
+
+  const pool = requiredSets.join("");
+  const characters = requiredSets.map((set) => randomCharacter(set));
+
+  while (characters.length < options.length) {
+    characters.push(randomCharacter(pool));
+  }
+
+  return shuffleCharacters(characters).join("");
+}
+
+function randomCharacter(characters) {
+  return characters[randomInt(characters.length)];
+}
+
+function shuffleCharacters(characters) {
+  const shuffled = [...characters];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function randomInt(maxExclusive) {
+  const randomValues = new Uint32Array(1);
+  const maxUnbiasedValue = Math.floor(0x100000000 / maxExclusive) * maxExclusive;
+
+  do {
+    crypto.getRandomValues(randomValues);
+  } while (randomValues[0] >= maxUnbiasedValue);
+
+  return randomValues[0] % maxExclusive;
 }
 
 async function copyToClipboard(value, successMessage) {
@@ -625,7 +771,7 @@ async function openSelectedCredentialForEdit() {
   newCredentialUsernameInput.value = selectedCredential.username || "";
   newCredentialPasswordInput.value = selectedCredential.password || "";
   showNewCredentialForm("Edit credential");
-  setStatus("Update the username or password, then click Save.");
+  setStatus("Update the name, username, or password, then click Save.");
 }
 
 function deriveDefaultCredentialName(context) {
