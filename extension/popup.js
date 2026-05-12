@@ -20,6 +20,7 @@ const togglePasswordButton = document.getElementById("toggle-password");
 const addNewCredentialButton = document.getElementById("add-new-credential");
 const newCredentialFormEl = document.getElementById("new-credential-form");
 const newCredentialTitleEl = document.getElementById("new-credential-title");
+const newCredentialNameInput = document.getElementById("new-credential-name");
 const newCredentialUsernameInput = document.getElementById("new-credential-username");
 const newCredentialPasswordInput = document.getElementById("new-credential-password");
 const cancelNewCredentialButton = document.getElementById("cancel-new-credential");
@@ -91,6 +92,11 @@ async function onFillNow() {
   }
 
   const selectedCredentialId = getSelectedCredentialId();
+  if (!selectedCredentialId) {
+    setStatus("Select an account first.", true);
+    return;
+  }
+
   const selectedCredentialResponse = await ensureCredentialDetail(selectedCredentialId);
   if (!selectedCredentialResponse.ok) {
     if (selectedCredentialResponse.code === "auth_required") {
@@ -105,11 +111,6 @@ async function onFillNow() {
     return;
   }
   const selectedCredential = selectedCredentialResponse.credential;
-
-  if (!selectedCredentialId) {
-    setStatus("Select an account first.", true);
-    return;
-  }
 
   const response = await chrome.tabs.sendMessage(activeTabId, {
     type: "FILL_REQUESTED",
@@ -173,6 +174,7 @@ async function onAddNewCredential() {
   currentPageContext = await extractCurrentPageContext();
   credentialFormMode = "create";
   editingCredentialId = null;
+  newCredentialNameInput.value = deriveDefaultCredentialName(currentPageContext);
   newCredentialUsernameInput.value = currentPageContext.username || "";
   newCredentialPasswordInput.value = currentPageContext.password || "";
   showNewCredentialForm("Add new credential");
@@ -182,6 +184,7 @@ async function onAddNewCredential() {
 async function onNewCredentialSubmit(event) {
   event.preventDefault();
 
+  const name = newCredentialNameInput.value.trim();
   const username = newCredentialUsernameInput.value.trim();
   const password = newCredentialPasswordInput.value;
 
@@ -196,6 +199,7 @@ async function onNewCredentialSubmit(event) {
       type: "UPDATE_CREDENTIAL",
       payload: {
         id: editingCredentialId,
+        name,
         username,
         password
       }
@@ -204,6 +208,7 @@ async function onNewCredentialSubmit(event) {
       type: "SAVE_CREDENTIAL",
       payload: {
         ...currentPageContext,
+        name,
         username,
         password
       }
@@ -385,7 +390,7 @@ function showNewCredentialForm(title) {
   newCredentialTitleEl.textContent = title;
   deleteCredentialButton.classList.toggle("hidden", credentialFormMode !== "edit");
   resetDeleteConfirmationState();
-  newCredentialUsernameInput.focus();
+  newCredentialNameInput.focus();
 }
 
 function hideNewCredentialForm(options = {}) {
@@ -397,6 +402,7 @@ function hideNewCredentialForm(options = {}) {
   if (options.clearValues) {
     credentialFormMode = "create";
     editingCredentialId = null;
+    newCredentialNameInput.value = "";
     newCredentialUsernameInput.value = "";
     newCredentialPasswordInput.value = "";
     currentPageContext = emptyPageContext();
@@ -475,6 +481,7 @@ async function ensureCredentialDetail(credentialId) {
   if (index >= 0) {
     listedCredentials[index] = {
       ...listedCredentials[index],
+      displayName: response.credential.displayName || listedCredentials[index].displayName || "",
       username: response.credential.username || "",
       password: response.credential.password || ""
     };
@@ -614,10 +621,47 @@ async function openSelectedCredentialForEdit() {
   const selectedCredential = detailResponse.credential;
   credentialFormMode = "edit";
   editingCredentialId = selectedCredential.id;
+  newCredentialNameInput.value = selectedCredential.displayName || "";
   newCredentialUsernameInput.value = selectedCredential.username || "";
   newCredentialPasswordInput.value = selectedCredential.password || "";
   showNewCredentialForm("Edit credential");
   setStatus("Update the username or password, then click Save.");
+}
+
+function deriveDefaultCredentialName(context) {
+  const hostname = context.domain || hostnameFromOrigin(context.origin);
+  if (!hostname) return "Website Login";
+
+  const siteName = siteNameFromHostname(hostname);
+  return siteName || hostname;
+}
+
+function hostnameFromOrigin(origin) {
+  if (!origin) return "";
+
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return "";
+  }
+}
+
+function siteNameFromHostname(hostname) {
+  const normalized = hostname.replace(/^www\./i, "").toLowerCase();
+  const parts = normalized.split(".").filter(Boolean);
+  if (!parts.length) return "";
+
+  let candidate = parts[0];
+  if (parts.length >= 2) candidate = parts[parts.length - 2];
+  if (parts.length >= 3 && parts[parts.length - 1].length === 2 && parts[parts.length - 2].length <= 3) {
+    candidate = parts[parts.length - 3];
+  }
+
+  return candidate
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function emptyPageContext() {

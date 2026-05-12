@@ -19,7 +19,7 @@ A Chromium MV3 extension + Native Messaging bridge that requests credentials fro
    - `POST /api/browser/credentials`
 4. Extension receives credentials and fills username/password fields.
 5. The popup can open a dedicated add-credential form, optionally prefilled from the current page, and save it into the password manager.
-6. The popup can edit the currently selected credential using the same form, prefilled with the selected username and password.
+6. The popup can edit the currently selected credential using the same form, prefilled with the selected name, username, and password.
 7. The edit form can also delete the selected credential and then refresh the current site credential list.
 
 ## Prerequisites
@@ -111,6 +111,7 @@ Request body (`POST /api/browser/credentials/search`):
 
 ```json
 {
+  "name": "Example",
   "origin": "https://example.com",
   "url": "https://example.com/login",
   "title": "Example Login",
@@ -179,14 +180,15 @@ To save a new login:
 
 1. Open the extension popup.
 2. Click **Add new credential**.
-3. If the current page already has a filled login form, the popup copies those values into the add form.
-4. Review or edit the username and password.
-5. Click **Save**.
+3. The popup defaults the credential name from the current site or domain.
+4. If the current page already has a filled login form, the popup copies those values into the add form.
+5. Review or edit the name, username, and password.
+6. Click **Save**.
 
 To edit an existing login:
 
 1. Select a credential in the popup.
 2. Click **Edit**.
-3. Update the username or password.
+3. Update the name, username, or password.
 4. Click **Save** or **Cancel** to return.
 5. Click **Delete credential** to remove the selected credential.

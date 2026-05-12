@@ -253,6 +253,8 @@ async function updateCredential(payload, authToken) {
         authorization: `Bearer ${bearerToken}`
       },
       body: JSON.stringify({
+        name: payload.name,
+        displayName: payload.displayName,
         username: payload.username,
         password: payload.password,
         notes: payload.notes

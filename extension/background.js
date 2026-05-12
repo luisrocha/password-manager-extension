@@ -307,6 +307,8 @@ async function updateNativeCredential(payload = {}) {
         authToken: auth.token,
         payload: {
           id: payload?.id,
+          name: payload?.name,
+          displayName: payload?.displayName,
           username: payload?.username,
           password: payload?.password,
           notes: payload?.notes
