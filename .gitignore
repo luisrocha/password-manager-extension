@@ -6,4 +6,5 @@ node_modules/
 *.log
 coverage/
 dist/
-AGENTS.md
+*.md
+!README.md

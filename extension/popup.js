@@ -3,7 +3,11 @@ const siteEl = document.getElementById("site");
 const unlockFormEl = document.getElementById("locked-section");
 const lockedSectionEl = unlockFormEl;
 const unlockedSectionEl = document.getElementById("unlocked-section");
+const vaultImportSectionEl = document.getElementById("vault-import-section");
+const openVaultImportButton = document.getElementById("open-vault-import");
 const masterPasswordInput = document.getElementById("master-password");
+const masterPasswordLabelEl = masterPasswordInput.closest("label");
+const authActionsEl = document.querySelector(".auth-actions");
 const fillNowButton = document.getElementById("fill-now");
 const editCredentialButton = document.getElementById("edit-credential");
 const credentialsBrowserViewEl = document.getElementById("credentials-browser-view");
@@ -56,13 +60,14 @@ let currentPageContext = emptyPageContext();
 let credentialFormMode = "create";
 let editingCredentialId = null;
 let deleteConfirmationPending = false;
+let activeSiteOrigin = "";
 
 init().catch((error) => setStatus(error.message, true));
 
 async function init() {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = activeTab?.id;
-  siteEl.textContent = activeTab?.url ? new URL(activeTab.url).origin : "No active site";
+  renderActiveSite(activeTab?.url);
 
   const settingsResp = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
   if (settingsResp?.ok) {
@@ -88,6 +93,7 @@ async function init() {
   generatePasswordButton.addEventListener("click", onGeneratePassword);
   cancelNewCredentialButton.addEventListener("click", onCancelNewCredential);
   deleteCredentialButton.addEventListener("click", onDeleteCredential);
+  openVaultImportButton.addEventListener("click", onOpenVaultImport);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
   credentialSearchFormEl.addEventListener("submit", onCredentialSearchSubmit);
   credentialSelectEl.addEventListener("change", onCredentialSelectionChange);
@@ -194,6 +200,10 @@ async function onUnlock() {
     await loadCredentialOptions();
   }
   setStatus("Extension unlocked");
+}
+
+async function onOpenVaultImport() {
+  await chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") });
 }
 
 async function onAddNewCredential() {
@@ -322,15 +332,19 @@ async function onUnlockSubmit(event) {
 async function refreshAuthState() {
   const response = await chrome.runtime.sendMessage({ type: "GET_AUTH_STATE" });
   const unlocked = Boolean(response?.ok && response?.auth?.unlocked);
+  const hasVault = Boolean(response?.ok && response?.auth?.hasVault);
 
   lockedSectionEl.classList.toggle("hidden", unlocked);
   unlockedSectionEl.classList.toggle("hidden", !unlocked);
+  vaultImportSectionEl.classList.toggle("hidden", unlocked || hasVault);
+  masterPasswordLabelEl.classList.toggle("hidden", !hasVault);
+  authActionsEl.classList.toggle("hidden", !hasVault);
 
   if (!unlocked) {
     hideCredentialSelection();
     hideNewCredentialForm({ clearValues: true });
     setCredentialActionState(false);
-    masterPasswordInput.focus();
+    if (hasVault) masterPasswordInput.focus();
   }
 
   return unlocked;
@@ -616,6 +630,26 @@ function setIconButton(button, icon, label) {
   button.title = label;
 }
 
+function renderActiveSite(url) {
+  activeSiteOrigin = "";
+
+  if (!url) {
+    siteEl.textContent = "No active site";
+    siteEl.classList.remove("hidden");
+    return;
+  }
+
+  const origin = new URL(url).origin;
+  if (origin === chrome.runtime.getURL("").slice(0, -1)) {
+    siteEl.classList.add("hidden");
+    return;
+  }
+
+  activeSiteOrigin = origin;
+  siteEl.textContent = origin;
+  siteEl.classList.remove("hidden");
+}
+
 function onOpenPasswordGenerator() {
   const willShow = passwordGeneratorPopupEl.classList.contains("hidden");
   passwordGeneratorPopupEl.classList.toggle("hidden", !willShow);
@@ -739,7 +773,7 @@ async function extractCurrentPageContext() {
 
   return {
     ...emptyPageContext(),
-    origin: siteEl.textContent === "No active site" ? "" : siteEl.textContent
+    origin: activeSiteOrigin
   };
 }
 

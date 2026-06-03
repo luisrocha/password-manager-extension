@@ -47,7 +47,7 @@ A Chromium MV3 extension + Native Messaging bridge that requests credentials fro
 
 The native host expects environment variables:
 
-- `PASSWORD_MANAGER_API_URL` (default: `http://127.0.0.1:17325`)
+- `PASSWORD_MANAGER_API_URL` (default: `https://vault.localhost`; use `http://127.0.0.1:3000` for a local Rails development server)
 - `PASSWORD_MANAGER_API_TOKEN` (required for unlock endpoint authentication)
 - `PASSWORD_MANAGER_TIMEOUT_MS` (default: `3000`)
 
@@ -60,13 +60,28 @@ cp host.env.example host.env
 
 Then edit `native-host/host.env` with your values.
 
+For the Docker production-style web app, use:
+
+```bash
+PASSWORD_MANAGER_API_URL=https://vault.localhost
+```
+
+For a local Rails development server, use:
+
+```bash
+PASSWORD_MANAGER_API_URL=http://127.0.0.1:3000
+```
+
 Authentication flow:
 
 1. Open the extension popup.
 2. Enter your master password and click **Unlock**.
-3. The extension requests an encrypted JWT from `POST /api/browser/auth/unlock` with the static API token and master password.
-4. The encrypted JWT is sent as Bearer token on later credentials requests.
-5. When the token expires, the extension requires master password again.
+3. The extension decrypts the imported vault key locally.
+4. The native host requests an unlock challenge from `POST /api/browser/auth/unlock` with the static API token.
+5. The extension signs the challenge locally with the imported vault signing key.
+6. The native host submits the signed proof and receives an encrypted JWT.
+7. The encrypted JWT is sent as Bearer token on later credentials requests.
+8. When the token expires, the extension requires unlock again.
 
 ## 3) Register the Native Messaging host (Linux)
 
@@ -91,11 +106,19 @@ Brave launches the host process itself via `native-host/host-launcher.sh`, which
 
 ## Password-manager app API contract
 
-Unlock request (`POST /api/browser/auth/unlock`):
+Unlock challenge request (`POST /api/browser/auth/unlock`):
+
+```json
+{}
+```
+
+Signed unlock request (`POST /api/browser/auth/unlock`):
 
 ```json
 {
-  "masterPassword": "your-master-password"
+  "challengeId": "challenge-id-from-server",
+  "unlockSignature": "base64-signature",
+  "signingPublicKeySpki": "base64-public-key"
 }
 ```
 
