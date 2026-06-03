@@ -1,6 +1,6 @@
 import process from "node:process";
 
-const API_URL = process.env.PASSWORD_MANAGER_API_URL || "http://127.0.0.1:17325";
+const API_URL = process.env.PASSWORD_MANAGER_API_URL || "https://vault.localhost";
 const API_TOKEN = process.env.PASSWORD_MANAGER_API_TOKEN || "";
 const TIMEOUT_MS = Number(process.env.PASSWORD_MANAGER_TIMEOUT_MS || 3000);
 
@@ -69,8 +69,14 @@ async function handleMessage(rawJson) {
     return;
   }
 
-  if (message?.type === "AUTHENTICATE") {
-    const response = await authenticate(message.payload || {});
+  if (message?.type === "REQUEST_UNLOCK_CHALLENGE") {
+    const response = await requestUnlockChallenge();
+    writeNative(response);
+    return;
+  }
+
+  if (message?.type === "SUBMIT_UNLOCK_PROOF") {
+    const response = await submitUnlockProof(message.payload || {});
     writeNative(response);
     return;
   }
@@ -127,7 +133,7 @@ async function fetchCredentials(payload, authToken) {
     if (error.name === "AbortError") {
       return { ok: false, error: "Password manager API timed out" };
     }
-    return { ok: false, error: error.message || "Bridge request failed" };
+    return bridgeFetchError(error);
   } finally {
     clearTimeout(timeout);
   }
@@ -172,7 +178,7 @@ async function fetchCredentialDetail(payload, authToken) {
     if (error.name === "AbortError") {
       return { ok: false, error: "Password manager API timed out" };
     }
-    return { ok: false, error: error.message || "Bridge request failed" };
+    return bridgeFetchError(error);
   } finally {
     clearTimeout(timeout);
   }
@@ -226,7 +232,7 @@ async function saveCredential(payload, authToken) {
     if (error.name === "AbortError") {
       return { ok: false, error: "Password manager API timed out" };
     }
-    return { ok: false, error: error.message || "Bridge request failed" };
+    return bridgeFetchError(error);
   } finally {
     clearTimeout(timeout);
   }
@@ -279,7 +285,7 @@ async function updateCredential(payload, authToken) {
     if (error.name === "AbortError") {
       return { ok: false, error: "Password manager API timed out" };
     }
-    return { ok: false, error: error.message || "Bridge request failed" };
+    return bridgeFetchError(error);
   } finally {
     clearTimeout(timeout);
   }
@@ -324,13 +330,13 @@ async function deleteCredential(payload, authToken) {
     if (error.name === "AbortError") {
       return { ok: false, error: "Password manager API timed out" };
     }
-    return { ok: false, error: error.message || "Bridge request failed" };
+    return bridgeFetchError(error);
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function authenticate(payload) {
+async function requestUnlockChallenge() {
   if (!API_TOKEN) {
     return {
       ok: false,
@@ -339,9 +345,35 @@ async function authenticate(payload) {
     };
   }
 
-  const masterPassword = payload.masterPassword;
-  if (!masterPassword) {
-    return { ok: false, code: "invalid_master_password", error: "Master password is required" };
+  const response = await postUnlockPayload({});
+  if (!response.ok) return response;
+
+  if (!response.challengeId || !response.challenge) {
+    return { ok: false, code: "authentication_failed", error: "Missing unlock challenge in response" };
+  }
+
+  return response;
+}
+
+async function submitUnlockProof(payload) {
+  if (!payload.challengeId || !payload.unlockSignature) {
+    return { ok: false, code: "invalid_request", error: "Unlock challenge and signature are required" };
+  }
+
+  return postUnlockPayload({
+    challengeId: payload.challengeId,
+    unlockSignature: payload.unlockSignature,
+    signingPublicKeySpki: payload.signingPublicKeySpki
+  });
+}
+
+async function postUnlockPayload(payload) {
+  if (!API_TOKEN) {
+    return {
+      ok: false,
+      code: "invalid_api_token",
+      error: "PASSWORD_MANAGER_API_TOKEN is required to unlock"
+    };
   }
 
   const controller = new AbortController();
@@ -354,12 +386,12 @@ async function authenticate(payload) {
         "content-type": "application/json",
         authorization: `Bearer ${API_TOKEN}`
       },
-      body: JSON.stringify({ masterPassword }),
+      body: JSON.stringify(payload),
       signal: controller.signal
     });
 
     const body = await safeJson(response);
-    if (!response.ok) {
+    if (!response.ok && response.status !== 202) {
       return {
         ok: false,
         code: body?.code || "authentication_failed",
@@ -367,23 +399,72 @@ async function authenticate(payload) {
       };
     }
 
-    if (!body?.token) {
-      return { ok: false, code: "authentication_failed", error: "Missing token in response" };
+    if (body?.requiresTotp) {
+      return {
+        ok: true,
+        requiresTotp: true,
+        totpChallengeId: body.totpChallengeId || null,
+        expiresAt: body.expiresAt || null
+      };
     }
 
     return {
       ok: true,
-      token: body.token,
-      expiresAt: body.expiresAt || null
+      challengeId: body?.challengeId || null,
+      challenge: body?.challenge || null,
+      token: body?.token || null,
+      expiresAt: body?.expiresAt || null,
+      tokenType: body?.tokenType || null,
+      totpRememberedClientToken: body?.totpRememberedClientToken || null
     };
   } catch (error) {
     if (error.name === "AbortError") {
       return { ok: false, code: "timeout", error: "Password manager API timed out" };
     }
-    return { ok: false, code: "bridge_error", error: error.message || "Bridge request failed" };
+    return bridgeFetchError(error);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function bridgeFetchError(error) {
+  const cause = error?.cause;
+  const causeCode = cause?.code || "";
+
+  if ([
+    "SELF_SIGNED_CERT_IN_CHAIN",
+    "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+    "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+    "DEPTH_ZERO_SELF_SIGNED_CERT"
+  ].includes(causeCode)) {
+    return {
+      ok: false,
+      code: "tls_untrusted_certificate",
+      error: "Password manager HTTPS certificate is not trusted by the native host."
+    };
+  }
+
+  if (causeCode === "ECONNREFUSED") {
+    return {
+      ok: false,
+      code: "connection_refused",
+      error: `Could not connect to password manager at ${API_URL}. Check that the app is running and PASSWORD_MANAGER_API_URL is correct.`
+    };
+  }
+
+  if (causeCode === "ENOTFOUND") {
+    return {
+      ok: false,
+      code: "host_not_found",
+      error: `Could not resolve password manager host for ${API_URL}. Check PASSWORD_MANAGER_API_URL.`
+    };
+  }
+
+  return {
+    ok: false,
+    code: causeCode ? "bridge_error" : "fetch_failed",
+    error: causeCode ? `Bridge request failed (${causeCode})` : (error.message || "Bridge request failed")
+  };
 }
 
 async function safeJson(response) {
