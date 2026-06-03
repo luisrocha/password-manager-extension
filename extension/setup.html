@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Password Manager Setup</title>
+    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="setup.css" />
+  </head>
+  <body>
+    <main class="setup-page">
+      <section class="setup-panel">
+        <h1>Password Manager</h1>
+        <p class="site">Import your vault key backup to unlock this extension.</p>
+
+        <form id="vault-import-form" class="vault-import">
+          <input id="vault-backup-file" type="file" accept="application/json,.json" required />
+          <button id="import-vault-backup" type="submit">Import backup</button>
+        </form>
+
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script type="module" src="setup.js"></script>
+  </body>
+</html>
