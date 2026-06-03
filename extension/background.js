@@ -1,3 +1,12 @@
+import {
+  buildUnlockProof,
+  hasStoredVault,
+  importVaultBackup,
+  isVaultUnlocked,
+  lockVault,
+  unlockVault
+} from "./vault_crypto.js";
+
 const NATIVE_APP_NAME = "com.password_manager";
 const DEFAULT_SETTINGS = {
   autofillOnPageLoad: false,
@@ -93,9 +102,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "AUTHENTICATE") {
-    authenticateWithMasterPassword(message.masterPassword)
+    unlockLocalVault(message.masterPassword)
       .then((response) => sendResponse(response))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "IMPORT_VAULT_BACKUP") {
+    importVaultBackup(message.serializedBackup)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, code: error.message, error: "Backup import failed" }));
     return true;
   }
 
@@ -106,13 +122,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "GET_AUTH_STATE") {
     getAuthState().then((auth) => {
-      sendResponse({
+      hasStoredVault().then((storedVault) => sendResponse({
         ok: true,
         auth: {
+          hasVault: storedVault,
+          localVaultUnlocked: isVaultUnlocked(),
           unlocked: Boolean(auth?.token),
           expiresAt: auth?.expiresAt || null
         }
-      });
+      }));
     });
     return true;
   }
@@ -406,51 +424,76 @@ async function deleteNativeCredential(payload = {}) {
   });
 }
 
-function authenticateWithMasterPassword(masterPassword) {
+async function unlockLocalVault(masterPassword) {
   if (!masterPassword) {
-    return Promise.resolve({ ok: false, error: "Master password is required" });
+    return { ok: false, error: "Master password is required" };
   }
 
+  await unlockVault(masterPassword);
+  const challengeResponse = await requestNativeUnlockChallenge();
+  if (!challengeResponse.ok) {
+    return challengeResponse;
+  }
+
+  const proof = await buildUnlockProof(challengeResponse.challenge);
+  const unlockResponse = await submitNativeUnlockProof({
+    challengeId: challengeResponse.challengeId,
+    unlockSignature: proof.signature,
+    signingPublicKeySpki: proof.signingPublicKeySpki
+  });
+
+  if (!unlockResponse.ok) {
+    return unlockResponse;
+  }
+
+  if (unlockResponse.requiresTotp) {
+    return {
+      ok: false,
+      code: "totp_required",
+      error: "Two-factor unlock is required. Extension TOTP support is not implemented yet."
+    };
+  }
+
+  if (!unlockResponse.token) {
+    return { ok: false, code: "authentication_failed", error: "Missing browser session token" };
+  }
+
+  await chrome.storage.session.set({
+    [AUTH_STORAGE_KEY]: {
+      token: unlockResponse.token,
+      expiresAt: unlockResponse.expiresAt || null
+    }
+  });
+
+  return { ok: true, localVaultUnlocked: true, expiresAt: unlockResponse.expiresAt || null };
+}
+
+async function requestNativeUnlockChallenge() {
+  return sendNativeMessage({ type: "REQUEST_UNLOCK_CHALLENGE" });
+}
+
+async function submitNativeUnlockProof(payload) {
+  return sendNativeMessage({ type: "SUBMIT_UNLOCK_PROOF", payload });
+}
+
+async function sendNativeMessage(message) {
   return new Promise((resolve) => {
-    chrome.runtime.sendNativeMessage(
-      NATIVE_APP_NAME,
-      {
-        type: "AUTHENTICATE",
-        payload: { masterPassword }
-      },
-      async (response) => {
-        if (chrome.runtime.lastError) {
-          resolve({
-            ok: false,
-            error: chrome.runtime.lastError.message || "Native host unavailable"
-          });
-          return;
-        }
-
-        if (!response?.ok || !response.token) {
-          resolve({
-            ok: false,
-            code: response?.code,
-            error: response?.error || "Unlock failed"
-          });
-          return;
-        }
-
-        await chrome.storage.session.set({
-          [AUTH_STORAGE_KEY]: {
-            token: response.token,
-            expiresAt: response.expiresAt || null
-          }
+    chrome.runtime.sendNativeMessage(NATIVE_APP_NAME, message, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({
+          ok: false,
+          error: chrome.runtime.lastError.message || "Native host unavailable"
         });
-        await chrome.storage.local.remove(AUTH_STORAGE_KEY);
-
-        resolve({ ok: true, expiresAt: response.expiresAt || null });
+        return;
       }
-    );
+
+      resolve(response || { ok: false, error: "Native host returned no data" });
+    });
   });
 }
 
 async function clearAuthState() {
+  lockVault();
   await chrome.storage.session.remove(AUTH_STORAGE_KEY);
   await chrome.storage.local.remove(AUTH_STORAGE_KEY);
 }

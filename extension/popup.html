@@ -12,6 +12,11 @@
       <p id="site" class="site">Detecting current site...</p>
 
       <form id="locked-section">
+        <div id="vault-import-section" class="vault-import hidden">
+          <p class="section-note">Import your vault key backup before unlocking this extension.</p>
+          <button id="open-vault-import" type="button" class="secondary-action">Import backup</button>
+        </div>
+
         <label class="master-password">
           Master password
           <input id="master-password" type="password" autocomplete="current-password" />

@@ -80,12 +80,26 @@ button:disabled {
   font-size: 12px;
 }
 
-.master-password input {
+.master-password input,
+.vault-import input {
   border: 1px solid #253540;
   border-radius: 8px;
   padding: 8px;
   background: #0e181d;
   color: var(--text);
+}
+
+.vault-import {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.section-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .auth-actions {

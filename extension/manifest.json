@@ -1,10 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Password Manager Autofill",
+  "name": "Password Manager",
   "description": "Browser extension that fetches credentials from your local password-manager app and autofills login forms.",
   "version": "0.1.0",
   "permissions": ["storage", "activeTab", "nativeMessaging"],
   "host_permissions": ["http://*/*", "https://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
