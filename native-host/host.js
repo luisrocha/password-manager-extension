@@ -112,7 +112,7 @@ async function handleMessage(rawJson) {
 }
 
 async function fetchCredentials(payload, authToken) {
-  const bearerToken = authToken || API_TOKEN;
+  const bearerToken = authToken;
   if (!bearerToken) {
     return { ok: false, code: "auth_required", error: "Unlock required" };
   }
@@ -155,7 +155,7 @@ async function fetchCredentials(payload, authToken) {
 }
 
 async function fetchCredentialDetail(payload, authToken) {
-  const bearerToken = authToken || API_TOKEN;
+  const bearerToken = authToken;
   if (!bearerToken) {
     return { ok: false, code: "auth_required", error: "Unlock required" };
   }
@@ -194,7 +194,7 @@ async function fetchCredentialDetail(payload, authToken) {
 }
 
 async function saveCredential(payload, authToken) {
-  const bearerToken = authToken || API_TOKEN;
+  const bearerToken = authToken;
   if (!bearerToken) {
     return { ok: false, code: "auth_required", error: "Unlock required" };
   }
@@ -240,7 +240,7 @@ async function saveCredential(payload, authToken) {
 }
 
 async function updateCredential(payload, authToken) {
-  const bearerToken = authToken || API_TOKEN;
+  const bearerToken = authToken;
   if (!bearerToken) {
     return { ok: false, code: "auth_required", error: "Unlock required" };
   }
@@ -285,7 +285,7 @@ async function updateCredential(payload, authToken) {
 }
 
 async function deleteCredential(payload, authToken) {
-  const bearerToken = authToken || API_TOKEN;
+  const bearerToken = authToken;
   if (!bearerToken) {
     return { ok: false, code: "auth_required", error: "Unlock required" };
   }

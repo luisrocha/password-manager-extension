@@ -43,6 +43,37 @@ test("fetchCredentials forwards search context with browser JWT", async (t) => {
   });
 });
 
+test("credential routes do not fall back to static API token", async (t) => {
+  const calls = mockFetch(t, {});
+
+  assert.deepEqual(await host.fetchCredentials({}, null), {
+    ok: false,
+    code: "auth_required",
+    error: "Unlock required"
+  });
+  assert.deepEqual(await host.fetchCredentialDetail({ id: "1" }, null), {
+    ok: false,
+    code: "auth_required",
+    error: "Unlock required"
+  });
+  assert.deepEqual(await host.saveCredential({}, null), {
+    ok: false,
+    code: "auth_required",
+    error: "Unlock required"
+  });
+  assert.deepEqual(await host.updateCredential({ id: "1" }, null), {
+    ok: false,
+    code: "auth_required",
+    error: "Unlock required"
+  });
+  assert.deepEqual(await host.deleteCredential({ id: "1" }, null), {
+    ok: false,
+    code: "auth_required",
+    error: "Unlock required"
+  });
+  assert.equal(calls.length, 0);
+});
+
 test("saveCredential forwards encrypted payload without plaintext credential fields", async (t) => {
   const calls = mockFetch(t, { credential: { id: "1" } });
 
