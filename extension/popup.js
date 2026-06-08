@@ -210,7 +210,10 @@ async function onOpenWebApp() {
     return;
   }
 
-  await chrome.tabs.create({ url: response.apiUrl });
+  const url = new URL(response.apiUrl);
+  url.searchParams.set("extension_id", chrome.runtime.id);
+
+  await chrome.tabs.create({ url: url.toString() });
 }
 
 async function onAddNewCredential() {
