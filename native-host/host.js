@@ -219,9 +219,7 @@ async function saveCredential(payload, authToken) {
         url: payload.url,
         title: payload.title,
         frameUrl: payload.frameUrl,
-        username: payload.username,
-        password: payload.password,
-        notes: payload.notes
+        encryptedSecretPayload: payload.encryptedSecretPayload
       }),
       signal: controller.signal
     });
@@ -272,9 +270,7 @@ async function updateCredential(payload, authToken) {
       body: JSON.stringify({
         name: payload.name,
         displayName: payload.displayName,
-        username: payload.username,
-        password: payload.password,
-        notes: payload.notes
+        encryptedSecretPayload: payload.encryptedSecretPayload
       }),
       signal: controller.signal
     });

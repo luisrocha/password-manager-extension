@@ -1,5 +1,7 @@
 import {
   buildUnlockProof,
+  decryptText,
+  encryptText,
   hasStoredVault,
   importVaultBackup,
   isVaultUnlocked,
@@ -235,9 +237,13 @@ async function requestNativeCredentials(payload = {}) {
           return;
         }
 
-        resolve({
-          ok: true,
-          credentials: Array.isArray(response.credentials) ? response.credentials : []
+        decryptCredentials(response.credentials).then((credentials) => {
+          resolve({
+            ok: true,
+            credentials
+          });
+        }).catch((error) => {
+          resolve({ ok: false, code: "vault_locked", error: error.message || "Failed to decrypt credentials" });
         });
       }
     );
@@ -329,9 +335,10 @@ async function requestNativeCredentialDetail(credentialId) {
           return;
         }
 
-        resolve({
-          ok: true,
-          credential: response.credential || null
+        decryptCredential(response.credential).then((credential) => {
+          resolve({ ok: true, credential });
+        }).catch((error) => {
+          resolve({ ok: false, code: "vault_locked", error: error.message || "Failed to decrypt credential" });
         });
       }
     );
@@ -343,6 +350,8 @@ async function saveNativeCredential(payload = {}) {
   if (!auth?.token) {
     return { ok: false, error: "Unlock required", code: "auth_required" };
   }
+
+  const encryptedSecretPayload = await encryptCredentialSecretPayload(payload);
 
   return new Promise((resolve) => {
     chrome.runtime.sendNativeMessage(
@@ -358,9 +367,7 @@ async function saveNativeCredential(payload = {}) {
           url: payload?.url,
           title: payload?.title,
           frameUrl: payload?.frameUrl,
-          username: payload?.username,
-          password: payload?.password,
-          notes: payload?.notes
+          encryptedSecretPayload
         }
       },
       (response) => {
@@ -407,6 +414,8 @@ async function updateNativeCredential(payload = {}) {
     return { ok: false, error: "Unlock required", code: "auth_required" };
   }
 
+  const encryptedSecretPayload = await encryptCredentialSecretPayload(payload);
+
   return new Promise((resolve) => {
     chrome.runtime.sendNativeMessage(
       NATIVE_APP_NAME,
@@ -417,9 +426,7 @@ async function updateNativeCredential(payload = {}) {
           id: payload?.id,
           name: payload?.name,
           displayName: payload?.displayName,
-          username: payload?.username,
-          password: payload?.password,
-          notes: payload?.notes
+          encryptedSecretPayload
         }
       },
       (response) => {
@@ -616,6 +623,42 @@ async function submitTotpChallenge(totpCode, rememberClient) {
   }
 
   return { ok: true, localVaultUnlocked: true, expiresAt: response.expiresAt || null };
+}
+
+async function decryptCredentials(credentials) {
+  if (!Array.isArray(credentials)) return [];
+
+  return Promise.all(credentials.map((credential) => decryptCredential(credential)));
+}
+
+async function decryptCredential(credential) {
+  if (!credential) return null;
+
+  const encryptedSecretPayload = credential.encryptedSecretPayload || credential.encrypted_secret_payload;
+  if (!encryptedSecretPayload) {
+    return {
+      ...credential,
+      username: "",
+      password: "",
+      notes: ""
+    };
+  }
+
+  const secretPayload = JSON.parse(await decryptText(encryptedSecretPayload));
+  return {
+    ...credential,
+    username: secretPayload.username || "",
+    password: secretPayload.password || "",
+    notes: secretPayload.notes || ""
+  };
+}
+
+async function encryptCredentialSecretPayload(payload = {}) {
+  return encryptText(JSON.stringify({
+    username: payload.username || "",
+    password: payload.password || "",
+    notes: payload.notes || ""
+  }));
 }
 
 async function requestNativeUnlockChallenge() {
