@@ -101,6 +101,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "GET_API_CONFIG") {
+    requestNativeApiConfig()
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "AUTHENTICATE") {
     unlockLocalVault(message.masterPassword)
       .then((response) => sendResponse(response))
@@ -194,6 +201,16 @@ async function requestNativeCredentials(payload = {}) {
       }
     );
   });
+}
+
+async function requestNativeApiConfig() {
+  const response = await sendNativeMessage({ type: "GET_API_CONFIG" });
+  if (!response.ok) return response;
+
+  return {
+    ok: true,
+    apiUrl: response.apiUrl || null
+  };
 }
 
 async function requestNativeCredentialDetail(credentialId) {
