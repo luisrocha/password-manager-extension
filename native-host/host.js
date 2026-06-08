@@ -86,6 +86,12 @@ async function handleMessage(rawJson) {
     return;
   }
 
+  if (message?.type === "SUBMIT_TOTP_CHALLENGE") {
+    const response = await submitTotpChallenge(message.payload || {});
+    writeNative(response);
+    return;
+  }
+
   if (message?.type === "PING") {
     writeNative({ ok: true, host: "password-manager-native-host" });
     return;
@@ -368,7 +374,20 @@ async function submitUnlockProof(payload) {
   return postUnlockPayload({
     challengeId: payload.challengeId,
     unlockSignature: payload.unlockSignature,
-    signingPublicKeySpki: payload.signingPublicKeySpki
+    signingPublicKeySpki: payload.signingPublicKeySpki,
+    totpRememberedClientToken: payload.totpRememberedClientToken || undefined
+  });
+}
+
+async function submitTotpChallenge(payload) {
+  if (!payload.totpChallengeId || !payload.totpCode) {
+    return { ok: false, code: "invalid_request", error: "Two-factor challenge and code are required" };
+  }
+
+  return postUnlockPayload({
+    totpChallengeId: payload.totpChallengeId,
+    totpCode: payload.totpCode,
+    rememberClient: Boolean(payload.rememberClient)
   });
 }
 

@@ -13,17 +13,20 @@ const DEFAULT_SETTINGS = {
   allowHttp: false
 };
 const AUTH_STORAGE_KEY = "browser_auth";
+const PENDING_TOTP_STORAGE_KEY = "pending_totp_challenge";
+const TOTP_REMEMBERED_CLIENT_STORAGE_KEY = "totp_remembered_client";
+const TOTP_REMEMBERED_CLIENT_TTL_MS = 24 * 60 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.sync.get(Object.keys(DEFAULT_SETTINGS));
   await chrome.storage.sync.set({ ...DEFAULT_SETTINGS, ...current });
   await chrome.storage.session.remove(AUTH_STORAGE_KEY);
-  await chrome.storage.local.remove(AUTH_STORAGE_KEY);
+  await chrome.storage.session.remove(PENDING_TOTP_STORAGE_KEY);
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await chrome.storage.session.remove(AUTH_STORAGE_KEY);
-  await chrome.storage.local.remove(AUTH_STORAGE_KEY);
+  await chrome.storage.session.remove(PENDING_TOTP_STORAGE_KEY);
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
@@ -115,6 +118,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "SUBMIT_TOTP_CHALLENGE") {
+    submitTotpChallenge(message.totpCode, message.rememberClient)
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "CANCEL_TOTP_CHALLENGE") {
+    clearPendingTotpChallenge().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
   if (message.type === "IMPORT_VAULT_BACKUP") {
     importVaultBackup(message.serializedBackup)
       .then(() => sendResponse({ ok: true }))
@@ -129,12 +144,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "GET_AUTH_STATE") {
     getAuthState().then((auth) => {
-      hasStoredVault().then((storedVault) => sendResponse({
+      Promise.all([hasStoredVault(), getPendingTotpChallenge()]).then(([storedVault, pendingTotp]) => sendResponse({
         ok: true,
         auth: {
           hasVault: storedVault,
           localVaultUnlocked: isVaultUnlocked(),
           unlocked: Boolean(auth?.token),
+          pendingTotp: Boolean(pendingTotp),
+          totpExpiresAt: pendingTotp?.expiresAt || null,
           expiresAt: auth?.expiresAt || null
         }
       }));
@@ -503,16 +520,19 @@ async function unlockLocalVault(masterPassword) {
   }
 
   await unlockVault(masterPassword);
+  await clearPendingTotpChallenge();
   const challengeResponse = await requestNativeUnlockChallenge();
   if (!challengeResponse.ok) {
     return challengeResponse;
   }
 
   const proof = await buildUnlockProof(challengeResponse.challenge);
+  const rememberedClientToken = await getTotpRememberedClientToken();
   const unlockResponse = await submitNativeUnlockProof({
     challengeId: challengeResponse.challengeId,
     unlockSignature: proof.signature,
-    signingPublicKeySpki: proof.signingPublicKeySpki
+    signingPublicKeySpki: proof.signingPublicKeySpki,
+    totpRememberedClientToken: rememberedClientToken
   });
 
   if (!unlockResponse.ok) {
@@ -520,10 +540,19 @@ async function unlockLocalVault(masterPassword) {
   }
 
   if (unlockResponse.requiresTotp) {
+    if (rememberedClientToken) await clearTotpRememberedClientToken();
+    if (!unlockResponse.totpChallengeId) {
+      return { ok: false, code: "totp_required", error: "Two-factor challenge is missing" };
+    }
+    await storePendingTotpChallenge({
+      totpChallengeId: unlockResponse.totpChallengeId,
+      expiresAt: unlockResponse.expiresAt || null
+    });
     return {
-      ok: false,
+      ok: true,
       code: "totp_required",
-      error: "Two-factor unlock is required. Extension TOTP support is not implemented yet."
+      requiresTotp: true,
+      expiresAt: unlockResponse.expiresAt || null
     };
   }
 
@@ -539,6 +568,54 @@ async function unlockLocalVault(masterPassword) {
   });
 
   return { ok: true, localVaultUnlocked: true, expiresAt: unlockResponse.expiresAt || null };
+}
+
+async function submitTotpChallenge(totpCode, rememberClient) {
+  const pendingTotp = await getPendingTotpChallenge();
+  const trimmedCode = typeof totpCode === "string" ? totpCode.trim() : "";
+  if (!pendingTotp?.totpChallengeId) {
+    return { ok: false, code: "invalid_totp_challenge", error: "Two-factor challenge expired. Unlock again." };
+  }
+  if (!trimmedCode) {
+    return { ok: false, code: "invalid_totp_code", error: "Two-factor code is required" };
+  }
+
+  const response = await sendNativeMessage({
+    type: "SUBMIT_TOTP_CHALLENGE",
+    payload: {
+      totpChallengeId: pendingTotp.totpChallengeId,
+      totpCode: trimmedCode,
+      rememberClient: Boolean(rememberClient)
+    }
+  });
+
+  if (!response.ok) {
+    if (response.code === "invalid_totp_challenge") await clearPendingTotpChallenge();
+    return response;
+  }
+
+  if (!response.token) {
+    return { ok: false, code: "authentication_failed", error: "Missing browser session token" };
+  }
+
+  await chrome.storage.session.set({
+    [AUTH_STORAGE_KEY]: {
+      token: response.token,
+      expiresAt: response.expiresAt || null
+    }
+  });
+  await clearPendingTotpChallenge();
+
+  if (response.totpRememberedClientToken) {
+    await chrome.storage.local.set({
+      [TOTP_REMEMBERED_CLIENT_STORAGE_KEY]: {
+        token: response.totpRememberedClientToken,
+        expiresAt: new Date(Date.now() + TOTP_REMEMBERED_CLIENT_TTL_MS).toISOString()
+      }
+    });
+  }
+
+  return { ok: true, localVaultUnlocked: true, expiresAt: response.expiresAt || null };
 }
 
 async function requestNativeUnlockChallenge() {
@@ -568,7 +645,7 @@ async function sendNativeMessage(message) {
 async function clearAuthState() {
   lockVault();
   await chrome.storage.session.remove(AUTH_STORAGE_KEY);
-  await chrome.storage.local.remove(AUTH_STORAGE_KEY);
+  await clearPendingTotpChallenge();
 }
 
 async function getAuthState() {
@@ -582,4 +659,42 @@ async function getAuthState() {
   }
 
   return auth;
+}
+
+async function storePendingTotpChallenge(challenge) {
+  await chrome.storage.session.set({ [PENDING_TOTP_STORAGE_KEY]: challenge });
+}
+
+async function getPendingTotpChallenge() {
+  const result = await chrome.storage.session.get(PENDING_TOTP_STORAGE_KEY);
+  const pendingTotp = result?.[PENDING_TOTP_STORAGE_KEY];
+  if (!pendingTotp?.totpChallengeId) return null;
+
+  if (pendingTotp.expiresAt && Date.now() >= new Date(pendingTotp.expiresAt).getTime()) {
+    await clearPendingTotpChallenge();
+    return null;
+  }
+
+  return pendingTotp;
+}
+
+async function clearPendingTotpChallenge() {
+  await chrome.storage.session.remove(PENDING_TOTP_STORAGE_KEY);
+}
+
+async function getTotpRememberedClientToken() {
+  const result = await chrome.storage.local.get(TOTP_REMEMBERED_CLIENT_STORAGE_KEY);
+  const rememberedClient = result?.[TOTP_REMEMBERED_CLIENT_STORAGE_KEY];
+  if (!rememberedClient?.token) return null;
+
+  if (rememberedClient.expiresAt && Date.now() >= new Date(rememberedClient.expiresAt).getTime()) {
+    await clearTotpRememberedClientToken();
+    return null;
+  }
+
+  return rememberedClient.token;
+}
+
+async function clearTotpRememberedClientToken() {
+  await chrome.storage.local.remove(TOTP_REMEMBERED_CLIENT_STORAGE_KEY);
 }

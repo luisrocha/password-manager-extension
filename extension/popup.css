@@ -107,6 +107,39 @@ button:disabled {
   margin-bottom: 8px;
 }
 
+.totp-challenge {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.totp-code {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.totp-code input {
+  border: 1px solid #253540;
+  border-radius: 8px;
+  padding: 8px;
+  background: #0e181d;
+  color: var(--text);
+}
+
+.remember-client {
+  color: var(--muted);
+}
+
+.totp-actions {
+  display: grid;
+  gap: 4px;
+}
+
+.totp-actions .secondary-action {
+  margin-top: 0;
+}
+
 .hidden {
   display: none !important;
 }

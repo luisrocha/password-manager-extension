@@ -8,6 +8,11 @@ const openWebAppButton = document.getElementById("open-web-app");
 const masterPasswordInput = document.getElementById("master-password");
 const masterPasswordLabelEl = masterPasswordInput.closest("label");
 const authActionsEl = document.querySelector(".auth-actions");
+const totpChallengeSectionEl = document.getElementById("totp-challenge-section");
+const totpCodeInput = document.getElementById("totp-code");
+const rememberTotpClientInput = document.getElementById("remember-totp-client");
+const verifyTotpButton = document.getElementById("verify-totp");
+const cancelTotpButton = document.getElementById("cancel-totp");
 const fillNowButton = document.getElementById("fill-now");
 const editCredentialButton = document.getElementById("edit-credential");
 const credentialsBrowserViewEl = document.getElementById("credentials-browser-view");
@@ -96,6 +101,8 @@ async function init() {
   deleteCredentialButton.addEventListener("click", onDeleteCredential);
   openWebAppButton.addEventListener("click", onOpenWebApp);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
+  verifyTotpButton.addEventListener("click", onVerifyTotp);
+  cancelTotpButton.addEventListener("click", onCancelTotp);
   credentialSearchFormEl.addEventListener("submit", onCredentialSearchSubmit);
   credentialSelectEl.addEventListener("change", onCredentialSelectionChange);
   copyUsernameButton.addEventListener("click", onCopyUsername);
@@ -195,6 +202,14 @@ async function onUnlock() {
     return;
   }
 
+  if (response.requiresTotp) {
+    masterPasswordInput.value = "";
+    await refreshAuthState();
+    setStatus("Two-factor verification required.");
+    totpCodeInput.focus();
+    return;
+  }
+
   masterPasswordInput.value = "";
   const unlocked = await refreshAuthState();
   if (unlocked) {
@@ -214,6 +229,42 @@ async function onOpenWebApp() {
   url.searchParams.set("extension_id", chrome.runtime.id);
 
   await chrome.tabs.create({ url: url.toString() });
+}
+
+async function onVerifyTotp() {
+  const response = await chrome.runtime.sendMessage({
+    type: "SUBMIT_TOTP_CHALLENGE",
+    totpCode: totpCodeInput.value,
+    rememberClient: rememberTotpClientInput.checked
+  });
+
+  if (!response?.ok) {
+    setStatus(response?.error || "Two-factor verification failed", true);
+    if (response?.code === "invalid_totp_challenge") {
+      clearTotpForm();
+      await refreshAuthState();
+      masterPasswordInput.focus();
+      return;
+    }
+
+    totpCodeInput.focus();
+    return;
+  }
+
+  clearTotpForm();
+  const unlocked = await refreshAuthState();
+  if (unlocked) {
+    await loadCredentialOptions();
+  }
+  setStatus("Extension unlocked");
+}
+
+async function onCancelTotp() {
+  await chrome.runtime.sendMessage({ type: "CANCEL_TOTP_CHALLENGE" });
+  clearTotpForm();
+  await refreshAuthState();
+  setStatus("Two-factor unlock canceled.");
+  masterPasswordInput.focus();
 }
 
 async function onAddNewCredential() {
@@ -336,6 +387,11 @@ async function onDeleteCredential() {
 
 async function onUnlockSubmit(event) {
   event.preventDefault();
+  if (!totpChallengeSectionEl.classList.contains("hidden")) {
+    await onVerifyTotp();
+    return;
+  }
+
   await onUnlock();
 }
 
@@ -343,23 +399,34 @@ async function refreshAuthState() {
   const response = await chrome.runtime.sendMessage({ type: "GET_AUTH_STATE" });
   const unlocked = Boolean(response?.ok && response?.auth?.unlocked);
   const hasVault = Boolean(response?.ok && response?.auth?.hasVault);
+  const pendingTotp = Boolean(response?.ok && response?.auth?.pendingTotp);
   const needsConnection = !unlocked && !hasVault;
 
   lockedSectionEl.classList.toggle("hidden", unlocked);
   unlockedSectionEl.classList.toggle("hidden", !unlocked);
   vaultConnectSectionEl.classList.toggle("hidden", !needsConnection);
-  masterPasswordLabelEl.classList.toggle("hidden", !hasVault);
-  authActionsEl.classList.toggle("hidden", !hasVault);
+  masterPasswordLabelEl.classList.toggle("hidden", !hasVault || pendingTotp);
+  authActionsEl.classList.toggle("hidden", !hasVault || pendingTotp);
+  totpChallengeSectionEl.classList.toggle("hidden", !pendingTotp || unlocked);
   siteEl.classList.toggle("hidden", needsConnection || activeSiteHiddenForInternalPage);
 
   if (!unlocked) {
     hideCredentialSelection();
     hideNewCredentialForm({ clearValues: true });
     setCredentialActionState(false);
-    if (hasVault) masterPasswordInput.focus();
+    if (pendingTotp) {
+      totpCodeInput.focus();
+    } else if (hasVault) {
+      masterPasswordInput.focus();
+    }
   }
 
   return unlocked;
+}
+
+function clearTotpForm() {
+  totpCodeInput.value = "";
+  rememberTotpClientInput.checked = false;
 }
 
 function showCredentialSelection(credentials, options = {}) {

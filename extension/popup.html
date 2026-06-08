@@ -25,6 +25,28 @@
         <div class="auth-actions">
           <button id="unlock" type="submit">Unlock</button>
         </div>
+
+        <div id="totp-challenge-section" class="totp-challenge hidden">
+          <label class="totp-code">
+            Two-factor code
+            <input
+              id="totp-code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </label>
+          <label class="remember-client">
+            <input id="remember-totp-client" type="checkbox" />
+            Do not ask again for 24 hours
+          </label>
+          <div class="totp-actions">
+            <button id="verify-totp" type="button">Continue</button>
+            <button id="cancel-totp" type="button" class="secondary-action">Back</button>
+          </div>
+        </div>
       </form>
 
       <section id="unlocked-section">
