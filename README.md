@@ -19,7 +19,7 @@ A Chromium MV3 extension + Native Messaging bridge that requests credentials fro
    - `POST /api/browser/credentials`
    - `PATCH /api/browser/credentials/:id`
    - `DELETE /api/browser/credentials/:id`
-4. Extension receives credentials and fills username/password fields.
+4. Extension background decrypts matching credential payloads locally and fills username/password fields.
 5. The popup can open a dedicated add-credential form, optionally prefilled from the current page, and save it into the password manager.
 6. The popup can edit the currently selected credential using the same form, prefilled with the selected name, username, and password.
 7. The edit form can also delete the selected credential and then refresh the current site credential list.
@@ -107,6 +107,14 @@ The script injects:
 ## 4) Start host process environment
 
 Brave launches the host process itself via `native-host/host-launcher.sh`, which loads `native-host/host.env`.
+
+## Native host tests
+
+From `native-host/`:
+
+```bash
+npm test
+```
 
 ## Password-manager app API contract
 
