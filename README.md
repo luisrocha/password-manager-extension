@@ -76,12 +76,16 @@ Authentication flow:
 
 1. Open the extension popup.
 2. Enter your master password and click **Unlock**.
-3. The extension decrypts the imported vault key locally.
+3. The extension decrypts the connected vault key locally.
 4. The native host requests an unlock challenge from `POST /api/browser/auth/unlock` with the static API token.
-5. The extension signs the challenge locally with the imported vault signing key.
-6. The native host submits the signed proof and receives an encrypted JWT.
-7. The encrypted JWT is sent as Bearer token on later credentials requests.
-8. When the token expires, the extension requires unlock again.
+5. The extension signs the challenge locally with the connected vault signing key.
+6. The native host submits the signed proof.
+7. If TOTP is enabled, the popup asks for a TOTP or recovery code and the native host submits that challenge response.
+8. The native host receives an encrypted browser JWT.
+9. The encrypted JWT is sent as Bearer token on later credentials requests.
+10. When the token expires, the extension clears only that browser JWT and requires unlock again.
+
+The native host acts as an HTTP proxy and API-token holder. It does not receive the master password, decrypted vault key material, or plaintext credential fields.
 
 ## 3) Register the Native Messaging host (Linux)
 
@@ -132,6 +136,26 @@ Unlock response:
 }
 ```
 
+TOTP challenge response:
+
+```json
+{
+  "requiresTotp": true,
+  "totpChallengeId": "totp-challenge-id-from-server",
+  "expiresAt": "2026-03-02T12:34:56Z"
+}
+```
+
+TOTP verification request:
+
+```json
+{
+  "totpChallengeId": "totp-challenge-id-from-server",
+  "totpCode": "123456",
+  "rememberClient": true
+}
+```
+
 Request body (`POST /api/browser/credentials/search`):
 
 ```json
@@ -152,13 +176,14 @@ Response body:
     {
       "id": "cred_123",
       "displayName": "Personal",
-      "username": "user@example.com"
+      "domain": "example.com",
+      "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
     }
   ]
 }
 ```
 
-If credentials match the current domain, the popup loads them into an account picker so the user can select one before clicking fill.
+If credentials match the current domain, the extension background decrypts `encryptedSecretPayload` locally and the popup loads them into an account picker so the user can select one before clicking fill.
 
 Response body (`GET /api/browser/credentials/:id`):
 
@@ -168,9 +193,18 @@ Response body (`GET /api/browser/credentials/:id`):
     "id": "cred_123",
     "displayName": "Personal",
     "domain": "example.com",
-    "username": "user@example.com",
-    "password": "super-secret"
+    "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
   }
+}
+```
+
+The decrypted secret payload shape is:
+
+```json
+{
+  "username": "user@example.com",
+  "password": "secret-value",
+  "notes": ""
 }
 ```
 
@@ -183,8 +217,7 @@ Request body (`POST /api/browser/credentials`):
   "title": "Example Login",
   "frameUrl": "https://example.com/login",
   "domain": "example.com",
-  "username": "user@example.com",
-  "password": "super-secret"
+  "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
 }
 ```
 
@@ -196,7 +229,7 @@ Response body:
     "id": "cred_123",
     "displayName": "Example Login",
     "domain": "example.com",
-    "username": "user@example.com"
+    "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
   }
 }
 ```

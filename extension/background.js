@@ -219,7 +219,7 @@ async function requestNativeCredentials(payload = {}) {
 
         if (!response || response.ok === false) {
           if (response?.code === "token_expired" || response?.code === "invalid_token") {
-            clearAuthState().then(() => {
+            clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
                 code: "auth_required",
@@ -317,7 +317,7 @@ async function requestNativeCredentialDetail(credentialId) {
 
         if (!response || response.ok === false) {
           if (response?.code === "token_expired" || response?.code === "invalid_token") {
-            clearAuthState().then(() => {
+            clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
                 code: "auth_required",
@@ -381,7 +381,7 @@ async function saveNativeCredential(payload = {}) {
 
         if (!response || response.ok === false) {
           if (response?.code === "token_expired" || response?.code === "invalid_token") {
-            clearAuthState().then(() => {
+            clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
                 code: "auth_required",
@@ -440,7 +440,7 @@ async function updateNativeCredential(payload = {}) {
 
         if (!response || response.ok === false) {
           if (response?.code === "token_expired" || response?.code === "invalid_token") {
-            clearAuthState().then(() => {
+            clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
                 code: "auth_required",
@@ -494,7 +494,7 @@ async function deleteNativeCredential(payload = {}) {
 
         if (!response || response.ok === false) {
           if (response?.code === "token_expired" || response?.code === "invalid_token") {
-            clearAuthState().then(() => {
+            clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
                 code: "auth_required",
@@ -687,8 +687,12 @@ async function sendNativeMessage(message) {
 
 async function clearAuthState() {
   lockVault();
-  await chrome.storage.session.remove(AUTH_STORAGE_KEY);
+  await clearBrowserAuthToken();
   await clearPendingTotpChallenge();
+}
+
+async function clearBrowserAuthToken() {
+  await chrome.storage.session.remove(AUTH_STORAGE_KEY);
 }
 
 async function getAuthState() {
@@ -697,7 +701,7 @@ async function getAuthState() {
   if (!auth?.token) return null;
 
   if (auth.expiresAt && Date.now() >= new Date(auth.expiresAt).getTime()) {
-    await clearAuthState();
+    await clearBrowserAuthToken();
     return null;
   }
 

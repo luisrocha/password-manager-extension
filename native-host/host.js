@@ -126,14 +126,7 @@ async function fetchCredentials(payload, authToken) {
       signal: controller.signal
     });
 
-    if (!response.ok) {
-      const errorBody = await safeJson(response);
-      return {
-        ok: false,
-        code: errorBody?.code || (response.status === 401 ? "invalid_token" : "api_error"),
-        error: errorBody?.error || `Password manager API returned ${response.status}`
-      };
-    }
+    if (!response.ok) return apiErrorResponse(response, await safeJson(response));
 
     const parsed = await response.json();
     return {
@@ -173,13 +166,7 @@ async function fetchCredentialDetail(payload, authToken) {
     });
 
     const parsed = await safeJson(response);
-    if (!response.ok) {
-      return {
-        ok: false,
-        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
-        error: parsed?.error || `Password manager API returned ${response.status}`
-      };
-    }
+    if (!response.ok) return apiErrorResponse(response, parsed);
 
     return {
       ok: true,
@@ -225,13 +212,7 @@ async function saveCredential(payload, authToken) {
     });
 
     const parsed = await safeJson(response);
-    if (!response.ok) {
-      return {
-        ok: false,
-        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
-        error: parsed?.error || `Password manager API returned ${response.status}`
-      };
-    }
+    if (!response.ok) return apiErrorResponse(response, parsed);
 
     return {
       ok: true,
@@ -276,13 +257,7 @@ async function updateCredential(payload, authToken) {
     });
 
     const parsed = await safeJson(response);
-    if (!response.ok) {
-      return {
-        ok: false,
-        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
-        error: parsed?.error || `Password manager API returned ${response.status}`
-      };
-    }
+    if (!response.ok) return apiErrorResponse(response, parsed);
 
     return {
       ok: true,
@@ -321,13 +296,7 @@ async function deleteCredential(payload, authToken) {
     });
 
     const parsed = await safeJson(response);
-    if (!response.ok) {
-      return {
-        ok: false,
-        code: parsed?.code || (response.status === 401 ? "invalid_token" : "api_error"),
-        error: parsed?.error || `Password manager API returned ${response.status}`
-      };
-    }
+    if (!response.ok) return apiErrorResponse(response, parsed);
 
     return {
       ok: true,
@@ -412,11 +381,7 @@ async function postUnlockPayload(payload) {
 
     const body = await safeJson(response);
     if (!response.ok && response.status !== 202) {
-      return {
-        ok: false,
-        code: body?.code || "authentication_failed",
-        error: body?.error || `Authentication failed (${response.status})`
-      };
+      return apiErrorResponse(response, body, "authentication_failed", `Authentication failed (${response.status})`);
     }
 
     if (body?.requiresTotp) {
@@ -445,6 +410,20 @@ async function postUnlockPayload(payload) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function apiErrorResponse(response, body, fallbackCode = "api_error", fallbackError = null) {
+  return {
+    ok: false,
+    code: body?.code || apiErrorCodeForStatus(response.status, fallbackCode),
+    error: body?.error || fallbackError || `Password manager API returned ${response.status}`
+  };
+}
+
+function apiErrorCodeForStatus(status, fallbackCode) {
+  if (status === 401) return "invalid_token";
+  if (status === 429) return "rate_limited";
+  return fallbackCode;
 }
 
 function bridgeFetchError(error) {
