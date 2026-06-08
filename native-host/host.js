@@ -69,6 +69,11 @@ async function handleMessage(rawJson) {
     return;
   }
 
+  if (message?.type === "GET_API_CONFIG") {
+    writeNative({ ok: true, apiUrl: API_URL });
+    return;
+  }
+
   if (message?.type === "REQUEST_UNLOCK_CHALLENGE") {
     const response = await requestUnlockChallenge();
     writeNative(response);

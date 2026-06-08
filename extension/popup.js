@@ -3,8 +3,8 @@ const siteEl = document.getElementById("site");
 const unlockFormEl = document.getElementById("locked-section");
 const lockedSectionEl = unlockFormEl;
 const unlockedSectionEl = document.getElementById("unlocked-section");
-const vaultImportSectionEl = document.getElementById("vault-import-section");
-const openVaultImportButton = document.getElementById("open-vault-import");
+const vaultConnectSectionEl = document.getElementById("vault-connect-section");
+const openWebAppButton = document.getElementById("open-web-app");
 const masterPasswordInput = document.getElementById("master-password");
 const masterPasswordLabelEl = masterPasswordInput.closest("label");
 const authActionsEl = document.querySelector(".auth-actions");
@@ -61,6 +61,7 @@ let credentialFormMode = "create";
 let editingCredentialId = null;
 let deleteConfirmationPending = false;
 let activeSiteOrigin = "";
+let activeSiteHiddenForInternalPage = false;
 
 init().catch((error) => setStatus(error.message, true));
 
@@ -93,7 +94,7 @@ async function init() {
   generatePasswordButton.addEventListener("click", onGeneratePassword);
   cancelNewCredentialButton.addEventListener("click", onCancelNewCredential);
   deleteCredentialButton.addEventListener("click", onDeleteCredential);
-  openVaultImportButton.addEventListener("click", onOpenVaultImport);
+  openWebAppButton.addEventListener("click", onOpenWebApp);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
   credentialSearchFormEl.addEventListener("submit", onCredentialSearchSubmit);
   credentialSelectEl.addEventListener("change", onCredentialSelectionChange);
@@ -202,8 +203,14 @@ async function onUnlock() {
   setStatus("Extension unlocked");
 }
 
-async function onOpenVaultImport() {
-  await chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") });
+async function onOpenWebApp() {
+  const response = await chrome.runtime.sendMessage({ type: "GET_API_CONFIG" });
+  if (!response?.ok || !response.apiUrl) {
+    setStatus(response?.error || "Could not read web app URL from the native host.", true);
+    return;
+  }
+
+  await chrome.tabs.create({ url: response.apiUrl });
 }
 
 async function onAddNewCredential() {
@@ -333,12 +340,14 @@ async function refreshAuthState() {
   const response = await chrome.runtime.sendMessage({ type: "GET_AUTH_STATE" });
   const unlocked = Boolean(response?.ok && response?.auth?.unlocked);
   const hasVault = Boolean(response?.ok && response?.auth?.hasVault);
+  const needsConnection = !unlocked && !hasVault;
 
   lockedSectionEl.classList.toggle("hidden", unlocked);
   unlockedSectionEl.classList.toggle("hidden", !unlocked);
-  vaultImportSectionEl.classList.toggle("hidden", unlocked || hasVault);
+  vaultConnectSectionEl.classList.toggle("hidden", !needsConnection);
   masterPasswordLabelEl.classList.toggle("hidden", !hasVault);
   authActionsEl.classList.toggle("hidden", !hasVault);
+  siteEl.classList.toggle("hidden", needsConnection || activeSiteHiddenForInternalPage);
 
   if (!unlocked) {
     hideCredentialSelection();
@@ -632,6 +641,7 @@ function setIconButton(button, icon, label) {
 
 function renderActiveSite(url) {
   activeSiteOrigin = "";
+  activeSiteHiddenForInternalPage = false;
 
   if (!url) {
     siteEl.textContent = "No active site";
@@ -641,6 +651,7 @@ function renderActiveSite(url) {
 
   const origin = new URL(url).origin;
   if (origin === chrome.runtime.getURL("").slice(0, -1)) {
+    activeSiteHiddenForInternalPage = true;
     siteEl.classList.add("hidden");
     return;
   }

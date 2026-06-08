@@ -80,8 +80,7 @@ button:disabled {
   font-size: 12px;
 }
 
-.master-password input,
-.vault-import input {
+.master-password input {
   border: 1px solid #253540;
   border-radius: 8px;
   padding: 8px;
@@ -89,7 +88,7 @@ button:disabled {
   color: var(--text);
 }
 
-.vault-import {
+.vault-setup {
   display: grid;
   gap: 8px;
   margin-bottom: 10px;
