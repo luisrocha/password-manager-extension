@@ -64,6 +64,7 @@ let listedCredentials = [];
 let currentPageContext = emptyPageContext();
 let credentialFormMode = "create";
 let editingCredentialId = null;
+let editingCredentialNotes = "";
 let deleteConfirmationPending = false;
 let activeSiteOrigin = "";
 let activeSiteHiddenForInternalPage = false;
@@ -276,6 +277,7 @@ async function onAddNewCredential() {
   currentPageContext = await extractCurrentPageContext();
   credentialFormMode = "create";
   editingCredentialId = null;
+  editingCredentialNotes = "";
   newCredentialNameInput.value = deriveDefaultCredentialName(currentPageContext);
   newCredentialUsernameInput.value = currentPageContext.username || "";
   newCredentialPasswordInput.value = currentPageContext.password || "";
@@ -303,7 +305,8 @@ async function onNewCredentialSubmit(event) {
         id: editingCredentialId,
         name,
         username,
-        password
+        password,
+        notes: editingCredentialNotes
       }
     })
     : await chrome.runtime.sendMessage({
@@ -435,7 +438,8 @@ function showCredentialSelection(credentials, options = {}) {
     displayName: credential.displayName || "",
     domain: credential.domain || "",
     username: credential.username || "",
-    password: credential.password || ""
+    password: credential.password || "",
+    notes: credential.notes || ""
   }));
   credentialSelectEl.innerHTML = "";
 
@@ -531,6 +535,7 @@ function hideNewCredentialForm(options = {}) {
   if (options.clearValues) {
     credentialFormMode = "create";
     editingCredentialId = null;
+    editingCredentialNotes = "";
     newCredentialNameInput.value = "";
     newCredentialUsernameInput.value = "";
     newCredentialPasswordInput.value = "";
@@ -612,7 +617,8 @@ async function ensureCredentialDetail(credentialId) {
       ...listedCredentials[index],
       displayName: response.credential.displayName || listedCredentials[index].displayName || "",
       username: response.credential.username || "",
-      password: response.credential.password || ""
+      password: response.credential.password || "",
+      notes: response.credential.notes || ""
     };
   }
 
@@ -882,6 +888,7 @@ async function openSelectedCredentialForEdit() {
   const selectedCredential = detailResponse.credential;
   credentialFormMode = "edit";
   editingCredentialId = selectedCredential.id;
+  editingCredentialNotes = selectedCredential.notes || "";
   newCredentialNameInput.value = selectedCredential.displayName || "";
   newCredentialUsernameInput.value = selectedCredential.username || "";
   newCredentialPasswordInput.value = selectedCredential.password || "";
