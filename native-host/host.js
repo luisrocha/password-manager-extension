@@ -1,4 +1,5 @@
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const API_URL = process.env.PASSWORD_MANAGER_API_URL || "https://vault.localhost";
 const API_TOKEN = process.env.PASSWORD_MANAGER_API_TOKEN || "";
@@ -6,15 +7,25 @@ const TIMEOUT_MS = Number(process.env.PASSWORD_MANAGER_TIMEOUT_MS || 3000);
 
 let buffer = Buffer.alloc(0);
 
-process.stdin.on("readable", () => {
-  let chunk;
-  while ((chunk = process.stdin.read()) !== null) {
-    buffer = Buffer.concat([buffer, chunk]);
-    consumeMessages();
-  }
-});
+if (isMainModule()) {
+  startNativeHost();
+}
 
-process.stdin.on("end", () => process.exit(0));
+function isMainModule() {
+  return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+}
+
+function startNativeHost() {
+  process.stdin.on("readable", () => {
+    let chunk;
+    while ((chunk = process.stdin.read()) !== null) {
+      buffer = Buffer.concat([buffer, chunk]);
+      consumeMessages();
+    }
+  });
+
+  process.stdin.on("end", () => process.exit(0));
+}
 
 function consumeMessages() {
   while (buffer.length >= 4) {
@@ -480,3 +491,15 @@ function writeNative(message) {
   header.writeUInt32LE(payload.length, 0);
   process.stdout.write(Buffer.concat([header, payload]));
 }
+
+export {
+  apiErrorResponse,
+  deleteCredential,
+  fetchCredentialDetail,
+  fetchCredentials,
+  requestUnlockChallenge,
+  saveCredential,
+  submitTotpChallenge,
+  submitUnlockProof,
+  updateCredential
+};
