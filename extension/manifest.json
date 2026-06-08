@@ -23,6 +23,12 @@
     "default_title": "Password Manager",
     "default_popup": "popup.html"
   },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost/*",
+      "http://127.0.0.1/*"
+    ]
+  },
   "commands": {
     "fill-login": {
       "suggested_key": {

@@ -145,6 +145,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   sendResponse({ ok: false, error: `Unknown message type: ${message.type}` });
 });
 
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (!message?.type) {
+    sendResponse({ ok: false, error: "Invalid message" });
+    return;
+  }
+
+  if (message.type === "PING") {
+    verifyExternalSender(sender)
+      .then(() => hasStoredVault())
+      .then((storedVault) => sendResponse({ ok: true, hasVault: storedVault }))
+      .catch((error) => sendResponse({ ok: false, code: error.message, error: "Extension connection unavailable" }));
+    return true;
+  }
+
+  if (message.type === "IMPORT_VAULT_BACKUP") {
+    importVaultBackupFromExternalMessage(message, sender)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, code: error.message, error: "Extension connection failed" }));
+    return true;
+  }
+
+  sendResponse({ ok: false, error: `Unknown external message type: ${message.type}` });
+});
+
 async function requestNativeCredentials(payload = {}) {
   const auth = await getAuthState();
   if (!auth?.token) {
@@ -211,6 +235,38 @@ async function requestNativeApiConfig() {
     ok: true,
     apiUrl: response.apiUrl || null
   };
+}
+
+async function importVaultBackupFromExternalMessage(message, sender) {
+  await verifyExternalSender(sender);
+
+  const serializedBackup = message.serializedBackup;
+  if (typeof serializedBackup !== "string" || serializedBackup.trim() === "") {
+    throw new Error("vault_missing");
+  }
+
+  await importVaultBackup(serializedBackup);
+  await clearAuthState();
+}
+
+async function verifyExternalSender(sender) {
+  const senderOrigin = originFromUrl(sender?.url);
+  if (!senderOrigin) throw new Error("sender_invalid");
+
+  const response = await requestNativeApiConfig();
+  if (!response.ok || !response.apiUrl) throw new Error("api_config_unavailable");
+
+  if (senderOrigin !== originFromUrl(response.apiUrl)) {
+    throw new Error("sender_not_allowed");
+  }
+}
+
+function originFromUrl(value) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
 }
 
 async function requestNativeCredentialDetail(credentialId) {
