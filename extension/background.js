@@ -10,6 +10,7 @@ import {
 } from "./vault_crypto.js";
 import {
   credentialSecretPayloadFrom,
+  expiresAtHasPassed,
   originFromUrl,
   serializeCredentialSecretPayload
 } from "./background_helpers.js";
@@ -683,7 +684,7 @@ async function getAuthState() {
   const auth = sessionResult?.[AUTH_STORAGE_KEY];
   if (!auth?.token) return null;
 
-  if (auth.expiresAt && Date.now() >= new Date(auth.expiresAt).getTime()) {
+  if (expiresAtHasPassed(auth.expiresAt)) {
     await clearBrowserAuthToken();
     return null;
   }
@@ -700,7 +701,7 @@ async function getPendingTotpChallenge() {
   const pendingTotp = result?.[PENDING_TOTP_STORAGE_KEY];
   if (!pendingTotp?.totpChallengeId) return null;
 
-  if (pendingTotp.expiresAt && Date.now() >= new Date(pendingTotp.expiresAt).getTime()) {
+  if (expiresAtHasPassed(pendingTotp.expiresAt)) {
     await clearPendingTotpChallenge();
     return null;
   }
@@ -717,7 +718,7 @@ async function getTotpRememberedClientToken() {
   const rememberedClient = result?.[TOTP_REMEMBERED_CLIENT_STORAGE_KEY];
   if (!rememberedClient?.token) return null;
 
-  if (rememberedClient.expiresAt && Date.now() >= new Date(rememberedClient.expiresAt).getTime()) {
+  if (expiresAtHasPassed(rememberedClient.expiresAt)) {
     await clearTotpRememberedClientToken();
     return null;
   }
