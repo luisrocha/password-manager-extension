@@ -11,6 +11,7 @@ import {
 import {
   credentialSecretPayloadFrom,
   expiresAtHasPassed,
+  isInvalidBrowserTokenResponse,
   originFromUrl,
   serializeCredentialSecretPayload
 } from "./background_helpers.js";
@@ -217,7 +218,7 @@ async function requestNativeCredentials(payload = {}) {
         }
 
         if (!response || response.ok === false) {
-          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+          if (isInvalidBrowserTokenResponse(response)) {
             clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
@@ -307,7 +308,7 @@ async function requestNativeCredentialDetail(credentialId) {
         }
 
         if (!response || response.ok === false) {
-          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+          if (isInvalidBrowserTokenResponse(response)) {
             clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
@@ -371,7 +372,7 @@ async function saveNativeCredential(payload = {}) {
         }
 
         if (!response || response.ok === false) {
-          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+          if (isInvalidBrowserTokenResponse(response)) {
             clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
@@ -430,7 +431,7 @@ async function updateNativeCredential(payload = {}) {
         }
 
         if (!response || response.ok === false) {
-          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+          if (isInvalidBrowserTokenResponse(response)) {
             clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
@@ -484,7 +485,7 @@ async function deleteNativeCredential(payload = {}) {
         }
 
         if (!response || response.ok === false) {
-          if (response?.code === "token_expired" || response?.code === "invalid_token") {
+          if (isInvalidBrowserTokenResponse(response)) {
             clearBrowserAuthToken().then(() => {
               resolve({
                 ok: false,
