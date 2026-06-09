@@ -1,283 +1,180 @@
 # Password Manager Browser Extension
 
-> 🚧 **Work in progress:** This project is actively being built and is not production-ready yet. 🚧
+Browser extension for the
+[Password Manager web app](https://github.com/luisrocha/password-manager). It
+connects to your self-hosted vault, unlocks locally with your master password,
+and helps search, fill, add, edit, and delete credentials from the browser.
 
-A Chromium MV3 extension + Native Messaging bridge that requests credentials from your local password-manager app and autofills login forms.
+## Features
+- Connects to the web app without requiring to manually import a vault backup file
+- Unlocks the connected vault locally with your master password
+- Supports the web app's TOTP unlock challenge, including remembered clients
+- Lists credentials for the current page
+- Auto-fill username and password fields from the selected credential
+- Allows to add, edit and delete credentials
 
-## What this includes
+## Requirements
+- A running Password Manager web app from
+  [luisrocha/password-manager](https://github.com/luisrocha/password-manager)
+- A Chromium-compatible browser with Manifest V3 extension support
+- Node.js 18+ for the Native Messaging host
+- Linux for the included Native Messaging install script
 
-- `extension/`: browser extension (Manifest V3)
-- `native-host/`: Native Messaging host (Node.js) that proxies requests to your app
+## Browser Compatibility
+Currently targeted and manually tested against:
 
-## Architecture
+- Brave
+- Chromium
 
-1. Content script detects login fields and requests credentials.
-2. Background service worker sends a Native Messaging request to `com.password_manager`.
-3. Native host calls your password-manager API endpoint:
-   - `POST /api/browser/credentials/search`
-   - `GET /api/browser/credentials/:id`
-   - `POST /api/browser/credentials`
-   - `PATCH /api/browser/credentials/:id`
-   - `DELETE /api/browser/credentials/:id`
-4. Extension background decrypts matching credential payloads locally and fills username/password fields.
-5. The popup can open a dedicated add-credential form, optionally prefilled from the current page, and save it into the password manager.
-6. The popup can edit the currently selected credential using the same form, prefilled with the selected name, username, and password.
-7. The edit form can also delete the selected credential and then refresh the current site credential list.
+Expected to work, but not yet fully verified:
 
-## Prerequisites
+- Google Chrome
+- Microsoft Edge
 
-- Chromium-based browser
-- Node.js 18+
-- Running password-manager app with local API access
+Not currently supported:
 
-## Compatibility (not yet confirmed)
-- Google Chrome (?)
-- Firefox (?)
-- Microsoft Edge (?)
-- Brave (?)
+- Firefox, because it uses a different extension and native messaging model
+- Safari, because it uses a different extension platform
 
-## 1) Load the extension in your browser
+## Repository Layout
+- `extension/`: unpacked browser extension source
+- `native-host/`: Node.js Native Messaging host used by the extension
 
-1. Open your browser extension page, for example `brave://extensions` or `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select `extension/`
-4. Copy the extension ID shown by the browser
+## Setup
 
-## 2) Configure native host bridge
+### 1. Run The Web App
 
-The native host expects environment variables:
+Set up and start the web app first. The extension expects the web app API to be
+reachable from the native host.
 
-- `PASSWORD_MANAGER_API_URL` (default: `https://vault.localhost`; use `http://127.0.0.1:3000` for a local Rails development server)
-- `PASSWORD_MANAGER_API_TOKEN` (required for unlock endpoint authentication)
-- `PASSWORD_MANAGER_TIMEOUT_MS` (default: `3000`)
+For the Docker production-style web app, the default API URL is:
 
-Use the native-host env file:
+```bash
+https://vault.localhost
+```
+
+For a local Rails development server, use:
+
+```bash
+http://127.0.0.1:3000
+```
+
+### 2. Configure The Native Host
+
+Create the native-host environment file:
 
 ```bash
 cd native-host
 cp host.env.example host.env
 ```
 
-Then edit `native-host/host.env` with your values.
+Edit `native-host/host.env` and set:
 
-For the Docker production-style web app, use:
+- `PASSWORD_MANAGER_API_URL`
+- `PASSWORD_MANAGER_API_TOKEN`
+- `PASSWORD_MANAGER_TIMEOUT_MS`, optional
 
-```bash
-PASSWORD_MANAGER_API_URL=https://vault.localhost
-```
+`PASSWORD_MANAGER_API_TOKEN` should be the raw browser API token. The web app
+stores and verifies the SHA-256 hash of that token.
 
-For a local Rails development server, use:
+### 3. Load The Extension
 
-```bash
-PASSWORD_MANAGER_API_URL=http://127.0.0.1:3000
-```
+1. Open your browser extension page, for example `brave://extensions` or
+   `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked**.
+4. Select the `extension/` directory.
+5. Copy the extension ID shown by the browser.
 
-Authentication flow:
+### 4. Register The Native Host
 
-1. Open the extension popup.
-2. Enter your master password and click **Unlock**.
-3. The extension decrypts the connected vault key locally.
-4. The native host requests an unlock challenge from `POST /api/browser/auth/unlock` with the static API token.
-5. The extension signs the challenge locally with the connected vault signing key.
-6. The native host submits the signed proof.
-7. If TOTP is enabled, the popup asks for a TOTP or recovery code and the native host submits that challenge response.
-8. The native host receives an encrypted browser JWT.
-9. The encrypted JWT is sent as Bearer token on later credentials requests.
-10. When the token expires, the extension clears only that browser JWT and requires unlock again.
+From `native-host/`, install the native messaging manifest for the same browser
+where you loaded the extension.
 
-The native host acts as an HTTP proxy and API-token holder. It does not receive the master password, decrypted vault key material, or plaintext credential fields.
-
-## 3) Register the Native Messaging host (Linux)
-
-From `native-host/`:
+Brave:
 
 ```bash
 EXTENSION_ID=your_real_extension_id ./install-native-host.sh
 ```
 
-The installer defaults to Brave. If you loaded the extension in Chromium or Chrome, set `BROWSER`:
+Chromium:
 
 ```bash
 BROWSER=chromium EXTENSION_ID=your_real_extension_id ./install-native-host.sh
+```
+
+Google Chrome:
+
+```bash
 BROWSER=chrome EXTENSION_ID=your_real_extension_id ./install-native-host.sh
 ```
 
-For another Chromium-based browser, pass its Native Messaging hosts directory directly:
+For another Chromium-based browser, pass its Native Messaging hosts directory:
 
 ```bash
 TARGET_DIR=/path/to/NativeMessagingHosts EXTENSION_ID=your_real_extension_id ./install-native-host.sh
 ```
 
-This creates one of:
+Restart or reload the browser after installing the native host.
 
-- Brave: `~/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.password_manager.json`
-- Chromium: `~/.config/chromium/NativeMessagingHosts/com.password_manager.json`
-- Chrome: `~/.config/google-chrome/NativeMessagingHosts/com.password_manager.json`
-
-The script injects:
-
-- Absolute path to `native-host/host-launcher.sh`
-- Your browser extension ID in `allowed_origins`
-
-## 4) Start host process environment
-
-The browser launches the host process itself via `native-host/host-launcher.sh`, which loads `native-host/host.env`.
-
-## Native host tests
-
-From `native-host/`:
-
-```bash
-npm test
-```
-
-## Extension tests
-
-From `extension/`:
-
-```bash
-npm test
-```
-
-## Password-manager app API contract
-
-Unlock challenge request (`POST /api/browser/auth/unlock`):
-
-```json
-{}
-```
-
-Signed unlock request (`POST /api/browser/auth/unlock`):
-
-```json
-{
-  "challengeId": "challenge-id-from-server",
-  "unlockSignature": "base64-signature",
-  "signingPublicKeySpki": "base64-public-key"
-}
-```
-
-Unlock response:
-
-```json
-{
-  "token": "encrypted-jwt",
-  "expiresAt": "2026-03-02T12:34:56Z",
-  "tokenType": "Bearer"
-}
-```
-
-TOTP challenge response:
-
-```json
-{
-  "requiresTotp": true,
-  "totpChallengeId": "totp-challenge-id-from-server",
-  "expiresAt": "2026-03-02T12:34:56Z"
-}
-```
-
-TOTP verification request:
-
-```json
-{
-  "totpChallengeId": "totp-challenge-id-from-server",
-  "totpCode": "123456",
-  "rememberClient": true
-}
-```
-
-Request body (`POST /api/browser/credentials/search`):
-
-```json
-{
-  "name": "Example",
-  "origin": "https://example.com",
-  "url": "https://example.com/login",
-  "title": "Example Login",
-  "frameUrl": "https://example.com/login"
-}
-```
-
-Response body:
-
-```json
-{
-  "credentials": [
-    {
-      "id": "cred_123",
-      "displayName": "Personal",
-      "domain": "example.com",
-      "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
-    }
-  ]
-}
-```
-
-If credentials match the current domain, the extension background decrypts `encryptedSecretPayload` locally and the popup loads them into an account picker so the user can select one before clicking fill.
-
-Response body (`GET /api/browser/credentials/:id`):
-
-```json
-{
-  "credential": {
-    "id": "cred_123",
-    "displayName": "Personal",
-    "domain": "example.com",
-    "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
-  }
-}
-```
-
-The decrypted secret payload shape is:
-
-```json
-{
-  "username": "user@example.com",
-  "password": "secret-value",
-  "notes": ""
-}
-```
-
-Request body (`POST /api/browser/credentials`):
-
-```json
-{
-  "origin": "https://example.com",
-  "url": "https://example.com/login",
-  "title": "Example Login",
-  "frameUrl": "https://example.com/login",
-  "domain": "example.com",
-  "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
-}
-```
-
-Response body:
-
-```json
-{
-  "credential": {
-    "id": "cred_123",
-    "displayName": "Example Login",
-    "domain": "example.com",
-    "encryptedSecretPayload": "-----BEGIN PGP MESSAGE-----..."
-  }
-}
-```
-
-To save a new login:
+### 5. Connect The Extension To The Vault
 
 1. Open the extension popup.
-2. Click **Add new credential**.
-3. The popup defaults the credential name from the current site or domain.
-4. If the current page already has a filled login form, the popup copies those values into the add form.
-5. Review or edit the name, username, and password. Use **Generate** beside the password field to create a new password with configurable length, numbers, and symbols.
-6. Click **Save**.
+2. Click **Open web app**.
+3. Unlock the web app.
+4. Click **Connect Extension** in the web app.
+5. Return to the extension popup and unlock with your master password.
 
-To edit an existing login:
+If TOTP is enabled in the web app, the extension will ask for a TOTP code or
+recovery code after the local unlock step.
 
-1. Select a credential in the popup.
-2. Click **Edit**.
-3. Update the name, username, or password. Use **Generate** beside the password field if you want to replace the current password.
-4. Click **Save** or **Cancel** to return.
-5. Click **Delete credential** to remove the selected credential.
+## Usage
+
+- Use the popup to search credentials for the current page.
+- Select a credential and click **Fill credentials**.
+- Use **Add new credential** to save a new login for the current site.
+- Use **Edit** to update or delete the selected credential.
+- Use **Autofill on page load** only for sites where you are comfortable with
+  automatic filling.
+
+## Troubleshooting
+
+### "Specified native messaging host not found"
+
+Install the native host for the same browser that loaded the extension, then
+restart or reload the browser. For Chromium, use:
+
+```bash
+cd native-host
+BROWSER=chromium EXTENSION_ID=your_chromium_extension_id ./install-native-host.sh
+```
+
+### "Unlock required"
+
+The browser session token may have expired. Open the extension popup and unlock
+again with your master password.
+
+### HTTPS certificate errors
+
+If the web app runs at `https://vault.localhost`, make sure the local Caddy
+certificate authority from the web app setup is trusted by your system/browser.
+
+## Tests
+
+Extension tests:
+
+```bash
+cd extension
+npm test
+```
+
+Native host tests:
+
+```bash
+cd native-host
+npm test
+```
+
+## License
+
+MIT License. See [LICENCE](LICENCE).
