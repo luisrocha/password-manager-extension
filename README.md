@@ -36,12 +36,12 @@ A Chromium MV3 extension + Native Messaging bridge that requests credentials fro
 - Microsoft Edge (?)
 - Brave (?)
 
-## 1) Load the extension in Brave
+## 1) Load the extension in your browser
 
-1. Open `brave://extensions`
+1. Open your browser extension page, for example `brave://extensions` or `chrome://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked** and select `extension/`
-4. Copy the extension ID shown by Brave
+4. Copy the extension ID shown by the browser
 
 ## 2) Configure native host bridge
 
@@ -95,18 +95,33 @@ From `native-host/`:
 EXTENSION_ID=your_real_extension_id ./install-native-host.sh
 ```
 
-This creates:
+The installer defaults to Brave. If you loaded the extension in Chromium or Chrome, set `BROWSER`:
 
-- `~/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.password_manager.json`
+```bash
+BROWSER=chromium EXTENSION_ID=your_real_extension_id ./install-native-host.sh
+BROWSER=chrome EXTENSION_ID=your_real_extension_id ./install-native-host.sh
+```
+
+For another Chromium-based browser, pass its Native Messaging hosts directory directly:
+
+```bash
+TARGET_DIR=/path/to/NativeMessagingHosts EXTENSION_ID=your_real_extension_id ./install-native-host.sh
+```
+
+This creates one of:
+
+- Brave: `~/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.password_manager.json`
+- Chromium: `~/.config/chromium/NativeMessagingHosts/com.password_manager.json`
+- Chrome: `~/.config/google-chrome/NativeMessagingHosts/com.password_manager.json`
 
 The script injects:
 
 - Absolute path to `native-host/host-launcher.sh`
-- Your Brave extension ID in `allowed_origins`
+- Your browser extension ID in `allowed_origins`
 
 ## 4) Start host process environment
 
-Brave launches the host process itself via `native-host/host-launcher.sh`, which loads `native-host/host.env`.
+The browser launches the host process itself via `native-host/host-launcher.sh`, which loads `native-host/host.env`.
 
 ## Native host tests
 

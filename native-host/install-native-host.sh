@@ -5,7 +5,27 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_TEMPLATE="$ROOT_DIR/com.password_manager.json"
 HOST_PATH="$ROOT_DIR/host.js"
 LAUNCHER_PATH="$ROOT_DIR/host-launcher.sh"
-TARGET_DIR="${HOME}/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts"
+BROWSER="${BROWSER:-brave}"
+
+if [[ -z "${TARGET_DIR:-}" ]]; then
+  case "$BROWSER" in
+    brave)
+      TARGET_DIR="${HOME}/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts"
+      ;;
+    chromium)
+      TARGET_DIR="${HOME}/.config/chromium/NativeMessagingHosts"
+      ;;
+    chrome | google-chrome)
+      TARGET_DIR="${HOME}/.config/google-chrome/NativeMessagingHosts"
+      ;;
+    *)
+      echo "Unsupported BROWSER: $BROWSER" >&2
+      echo "Supported values: brave, chromium, chrome" >&2
+      echo "Or set TARGET_DIR to the browser NativeMessagingHosts directory." >&2
+      exit 1
+      ;;
+  esac
+fi
 
 if [[ ! -f "$MANIFEST_TEMPLATE" ]]; then
   echo "Manifest template not found: $MANIFEST_TEMPLATE" >&2
@@ -14,7 +34,8 @@ fi
 
 if [[ -z "${EXTENSION_ID:-}" ]]; then
   echo "Set EXTENSION_ID before running this script." >&2
-  echo "Example: EXTENSION_ID=abcdefghijklmnopabcdefghijklmnop ./install-native-host.sh" >&2
+  echo "Example: BROWSER=chromium EXTENSION_ID=abcdefghijklmnopabcdefghijklmnop ./install-native-host.sh" >&2
+  echo "Custom path example: TARGET_DIR=/path/to/NativeMessagingHosts EXTENSION_ID=abcdefghijklmnopabcdefghijklmnop ./install-native-host.sh" >&2
   exit 1
 fi
 
