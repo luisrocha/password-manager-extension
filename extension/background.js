@@ -132,13 +132,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === "IMPORT_VAULT_BACKUP") {
-    importVaultBackup(message.serializedBackup)
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => sendResponse({ ok: false, code: error.message, error: "Backup import failed" }));
-    return true;
-  }
-
   if (message.type === "LOCK_EXTENSION") {
     clearAuthState().then(() => sendResponse({ ok: true }));
     return true;
@@ -178,7 +171,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return true;
   }
 
-  if (message.type === "IMPORT_VAULT_BACKUP") {
+  if (message.type === "CONNECT_VAULT_BACKUP") {
     importVaultBackupFromExternalMessage(message, sender)
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, code: error.message, error: "Extension connection failed" }));
