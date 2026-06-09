@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   credentialSecretPayloadFrom,
   expiresAtHasPassed,
+  isInvalidBrowserTokenResponse,
   originFromUrl,
   serializeCredentialSecretPayload
 } from "../background_helpers.js";
@@ -64,4 +65,12 @@ test("expiresAtHasPassed treats missing or invalid timestamps as not expired", (
   assert.equal(expiresAtHasPassed(null, now), false);
   assert.equal(expiresAtHasPassed("", now), false);
   assert.equal(expiresAtHasPassed("not a timestamp", now), false);
+});
+
+test("isInvalidBrowserTokenResponse detects token invalidation responses", () => {
+  assert.equal(isInvalidBrowserTokenResponse({ code: "token_expired" }), true);
+  assert.equal(isInvalidBrowserTokenResponse({ code: "invalid_token" }), true);
+  assert.equal(isInvalidBrowserTokenResponse({ code: "invalid_api_token" }), false);
+  assert.equal(isInvalidBrowserTokenResponse({ code: "invalid_totp_code" }), false);
+  assert.equal(isInvalidBrowserTokenResponse(null), false);
 });

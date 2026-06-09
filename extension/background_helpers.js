@@ -24,3 +24,7 @@ export function expiresAtHasPassed(expiresAt, now = Date.now()) {
   const expiresAtTime = new Date(expiresAt).getTime();
   return Number.isFinite(expiresAtTime) && now >= expiresAtTime;
 }
+
+export function isInvalidBrowserTokenResponse(response) {
+  return response?.code === "token_expired" || response?.code === "invalid_token";
+}
