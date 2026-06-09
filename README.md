@@ -116,6 +116,14 @@ From `native-host/`:
 npm test
 ```
 
+## Extension tests
+
+From `extension/`:
+
+```bash
+npm test
+```
+
 ## Password-manager app API contract
 
 Unlock challenge request (`POST /api/browser/auth/unlock`):

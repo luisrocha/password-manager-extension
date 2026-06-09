@@ -8,6 +8,11 @@ import {
   lockVault,
   unlockVault
 } from "./vault_crypto.js";
+import {
+  credentialSecretPayloadFrom,
+  originFromUrl,
+  serializeCredentialSecretPayload
+} from "./background_helpers.js";
 
 const NATIVE_APP_NAME = "com.password_manager";
 const DEFAULT_SETTINGS = {
@@ -274,14 +279,6 @@ async function verifyExternalSender(sender) {
 
   if (senderOrigin !== originFromUrl(response.apiUrl)) {
     throw new Error("sender_not_allowed");
-  }
-}
-
-function originFromUrl(value) {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
   }
 }
 
@@ -637,21 +634,14 @@ async function decryptCredential(credential) {
     };
   }
 
-  const secretPayload = JSON.parse(await decryptText(encryptedSecretPayload));
   return {
     ...credential,
-    username: secretPayload.username || "",
-    password: secretPayload.password || "",
-    notes: secretPayload.notes || ""
+    ...credentialSecretPayloadFrom(JSON.parse(await decryptText(encryptedSecretPayload)))
   };
 }
 
 async function encryptCredentialSecretPayload(payload = {}) {
-  return encryptText(JSON.stringify({
-    username: payload.username || "",
-    password: payload.password || "",
-    notes: payload.notes || ""
-  }));
+  return encryptText(serializeCredentialSecretPayload(payload));
 }
 
 async function requestNativeUnlockChallenge() {
