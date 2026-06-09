@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   credentialSecretPayloadFrom,
+  expiresAtHasPassed,
   originFromUrl,
   serializeCredentialSecretPayload
 } from "../background_helpers.js";
@@ -47,4 +48,20 @@ test("serializeCredentialSecretPayload serializes the encrypted payload shape", 
     serializeCredentialSecretPayload({ username: "person@example.com", password: "secret" }),
     '{"username":"person@example.com","password":"secret","notes":""}'
   );
+});
+
+test("expiresAtHasPassed detects expired timestamps", () => {
+  const now = Date.parse("2026-06-09T12:00:00Z");
+
+  assert.equal(expiresAtHasPassed("2026-06-09T11:59:59Z", now), true);
+  assert.equal(expiresAtHasPassed("2026-06-09T12:00:00Z", now), true);
+  assert.equal(expiresAtHasPassed("2026-06-09T12:00:01Z", now), false);
+});
+
+test("expiresAtHasPassed treats missing or invalid timestamps as not expired", () => {
+  const now = Date.parse("2026-06-09T12:00:00Z");
+
+  assert.equal(expiresAtHasPassed(null, now), false);
+  assert.equal(expiresAtHasPassed("", now), false);
+  assert.equal(expiresAtHasPassed("not a timestamp", now), false);
 });
