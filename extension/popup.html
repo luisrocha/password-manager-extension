@@ -19,7 +19,16 @@
 
         <label class="master-password">
           Master password
-          <input id="master-password" type="password" autocomplete="current-password" />
+          <div class="credential-field-actions master-password-actions">
+            <input id="master-password" type="password" autocomplete="current-password" />
+            <button
+              id="toggle-master-password"
+              type="button"
+              class="field-action icon-action"
+              aria-label="Show password"
+              title="Show password"
+            ></button>
+          </div>
         </label>
 
         <div class="auth-actions">

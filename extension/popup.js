@@ -6,6 +6,7 @@ const unlockedSectionEl = document.getElementById("unlocked-section");
 const vaultConnectSectionEl = document.getElementById("vault-connect-section");
 const openWebAppButton = document.getElementById("open-web-app");
 const masterPasswordInput = document.getElementById("master-password");
+const toggleMasterPasswordButton = document.getElementById("toggle-master-password");
 const masterPasswordLabelEl = masterPasswordInput.closest("label");
 const authActionsEl = document.querySelector(".auth-actions");
 const totpChallengeSectionEl = document.getElementById("totp-challenge-section");
@@ -85,6 +86,7 @@ async function init() {
   setIconButton(openPasswordGeneratorButton, "generate", "Generate password");
   setIconButton(copyUsernameButton, "copy", "Copy username");
   setIconButton(copyPasswordButton, "copy", "Copy password");
+  setPasswordVisibilityButton(toggleMasterPasswordButton, false);
   setPasswordVisibilityButton(togglePasswordButton, false);
   setPasswordVisibilityButton(toggleNewCredentialPasswordButton, false);
 
@@ -102,6 +104,7 @@ async function init() {
   deleteCredentialButton.addEventListener("click", onDeleteCredential);
   openWebAppButton.addEventListener("click", onOpenWebApp);
   unlockFormEl.addEventListener("submit", onUnlockSubmit);
+  toggleMasterPasswordButton.addEventListener("click", onToggleMasterPasswordVisibility);
   verifyTotpButton.addEventListener("click", onVerifyTotp);
   cancelTotpButton.addEventListener("click", onCancelTotp);
   credentialSearchFormEl.addEventListener("submit", onCredentialSearchSubmit);
@@ -692,6 +695,12 @@ function onTogglePasswordVisibility() {
   const isHidden = selectedPasswordInput.classList.contains("masked");
   selectedPasswordInput.classList.toggle("masked", !isHidden);
   setPasswordVisibilityButton(togglePasswordButton, isHidden);
+}
+
+function onToggleMasterPasswordVisibility() {
+  const isHidden = masterPasswordInput.type === "password";
+  masterPasswordInput.type = isHidden ? "text" : "password";
+  setPasswordVisibilityButton(toggleMasterPasswordButton, isHidden);
 }
 
 function onToggleNewCredentialPasswordVisibility() {
