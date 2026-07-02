@@ -217,6 +217,10 @@ button:disabled {
   min-width: 0;
 }
 
+.master-password-actions {
+  grid-template-columns: 1fr auto;
+}
+
 .password-generator-field {
   grid-template-columns: 1fr auto auto;
 }
